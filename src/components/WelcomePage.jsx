@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Header from './Header';
 import Carousel from './Caurosel';
 import EventCard from './EventCard';
@@ -47,25 +47,37 @@ const EventSection = styled.div`
 `;
 
 const WelcomePage = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearchChange = (event) => {
+    setSearchQuery(event.target.value);
+  };
+
   return (
     <>
       <Header />
       {/* Add the SearchBar component */}
       <SearchBarContainer>
-        <SearchIcon />
-        <SearchInput type="text" placeholder="Search events..." />
+        <SearchIcon style={{ cursor: 'pointer' }} />
+        <SearchInput
+          type="text"
+          placeholder="Search events..."
+          value={searchQuery}
+          onChange={handleSearchChange}
+        />
       </SearchBarContainer>
-      <Carousel />
-      <br />
-      <hr
-        style={{
-          border: '0',
-          height: '1px',
-          backgroundImage: 'linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0)',
-        }}
+      {!searchQuery && <Carousel />}
+      {!searchQuery && (
+        <hr
+          style={{
+            border: '0',
+            height: '1px',
+            backgroundImage: 'linear-gradient(to right, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0)',
+          }}
       />
+      )}
       <EventSection>
-        <EventCard title="Event 1" description="Description for Event 1" />
+        <EventCard searchQuery={searchQuery} />
       </EventSection>
     </>
   );

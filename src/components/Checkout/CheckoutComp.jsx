@@ -214,6 +214,10 @@ const CheckoutComp = ({ pendingTickets }) => {
     } catch (error) {
       console.error("Error completing payment:", error);
       setPaymentFailed(true);
+      setTimeout(() => {
+        navigate(`/event/${pendingTickets[0].eventId}`);
+      }, 3000);
+
     } finally {
       setIsPaymentProcessing(false);
     }

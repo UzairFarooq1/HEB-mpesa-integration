@@ -1,4 +1,3 @@
-// EventCard.js
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { doc, getFirestore, collection, getDocs, getDoc } from 'firebase/firestore';
@@ -18,10 +17,8 @@ const EventCardContainer = styled.div`
   display: flex;
   align-items: center;
   position: relative; /* Add position relative */
-  width : 800px;
-
+  width : 100%;
 `;
-
 
 const PaginationContainer = styled.div`
   display: flex;
@@ -39,14 +36,12 @@ const PaginationButton = styled.button`
   margin: 0 5px;
 `;
 
-
 const ImageContainer = styled.div`
   width: 150px;
   height: 150px; 
   margin-right: 20px;
   overflow: hidden;
   object-fit: contain;
-
 `;
 
 const Image = styled.img`
@@ -54,8 +49,8 @@ const Image = styled.img`
   max-width: 150px; /* Set a maximum width */
   max-height: 150px; /* Set a maximum height */
   object-fit: contain;
-
 `;
+
 const EventDetailsContainer = styled.div`
   flex: 1;
 `;
@@ -97,14 +92,12 @@ const ViewButton = styled.button`
   margin-top: 10px;
 `;
 
-
-
 const AllEventsHeader = styled.h2`
   color: gold;
   margin-bottom: 10px;
   text-align: center;  /* Align text to center */
-
 `;
+
 const SoldOutOverlay = styled.div`
   position: absolute;
   top: 0;
@@ -127,7 +120,7 @@ const SoldOutText = styled.p`
   font-size: 18px;
 `;
 
-const EventCard = () => {
+const EventCard = ({ searchQuery }) => {
   const [events, setEvents] = useState([]);
   const [eventImages, setEventImages] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
@@ -139,24 +132,26 @@ const EventCard = () => {
       try {
         const eventsCollection = collection(db, 'events');
         const eventsSnapshot = await getDocs(eventsCollection);
-        const eventsData = await Promise.all(eventsSnapshot.docs.map(async (eventDoc) => {
-          const eventData = { id: eventDoc.id, ...eventDoc.data() };
-          let organizerCompanyName = ''; // Default value
-        
-          if (eventData.userId) { // Check if userId exists
-            const userDocRef = doc(db, 'users', eventData.userId);
-            const userDocSnapshot = await getDoc(userDocRef);
-        
-            if (userDocSnapshot.exists()) {
-              organizerCompanyName = userDocSnapshot.data().Company;
+        const eventsData = await Promise.all(
+          eventsSnapshot.docs.map(async (eventDoc) => {
+            const eventData = { id: eventDoc.id, ...eventDoc.data() };
+            let organizerCompanyName = ''; // Default value
+
+            if (eventData.userId) {
+              const userDocRef = doc(db, 'users', eventData.userId);
+              const userDocSnapshot = await getDoc(userDocRef);
+
+              if (userDocSnapshot.exists()) {
+                organizerCompanyName = userDocSnapshot.data().Company;
+              }
             }
-          }
-        
-          eventData.organizerCompanyName = organizerCompanyName;
-        
-          return eventData;
-        }));
-        
+
+            eventData.organizerCompanyName = organizerCompanyName;
+
+            return eventData;
+          })
+        );
+
         setEvents(eventsData);
       } catch (error) {
         console.error('Error fetching events:', error);
@@ -165,7 +160,7 @@ const EventCard = () => {
 
     fetchEvents();
   }, [db]);
-  
+
   useEffect(() => {
     const fetchEventImages = async () => {
       try {
@@ -175,7 +170,7 @@ const EventCard = () => {
           const pictureUrl = await getDownloadURL(pictureRef);
           return { eventId: event.id, url: pictureUrl };
         });
-    
+
         const images = await Promise.all(imagesPromises);
         const imagesObject = Object.assign({}, ...images);
         setEventImages(imagesObject);
@@ -183,14 +178,19 @@ const EventCard = () => {
         console.error('Error fetching event images:', error);
       }
     };
-    
+
     fetchEventImages();
   }, [events]);
+
+  // Filter events based on the search query
+  const filteredEvents = events.filter((event) =>
+    event.eventName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Get current events
   const indexOfLastEvent = currentPage * eventsPerPage;
   const indexOfFirstEvent = indexOfLastEvent - eventsPerPage;
-  const currentEvents = events.slice(indexOfFirstEvent, indexOfLastEvent);
+  const currentEvents = filteredEvents.slice(indexOfFirstEvent, indexOfLastEvent);
 
   // Change page
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
@@ -226,17 +226,17 @@ const EventCard = () => {
         </EventCardContainer>
       ))}
       <PaginationContainer>
-        {eventsPerPage < events.length && (
+        {eventsPerPage < filteredEvents.length && (
           <>
             <PaginationButton onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1}>
               Previous
             </PaginationButton>
-            {[...Array(Math.ceil(events.length / eventsPerPage))].map((_, index) => (
+            {[...Array(Math.ceil(filteredEvents.length / eventsPerPage))].map((_, index) => (
               <PaginationButton key={index} onClick={() => paginate(index + 1)} className={currentPage === index + 1 ? 'active' : ''}>
                 {index + 1}
               </PaginationButton>
             ))}
-            <PaginationButton onClick={() => paginate(currentPage + 1)} disabled={currentPage === Math.ceil(events.length / eventsPerPage)}>
+            <PaginationButton onClick={() => paginate(currentPage + 1)} disabled={currentPage === Math.ceil(filteredEvents.length / eventsPerPage)}>
               Next
             </PaginationButton>
           </>
