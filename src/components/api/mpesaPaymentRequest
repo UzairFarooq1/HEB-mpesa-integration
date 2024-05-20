@@ -1,0 +1,49 @@
+import axios from 'axios';
+
+const mpesaPaymentRequest = async () => {
+  try {
+    // Authenticate and get access token
+    const tokenResponse = await axios.get(
+      'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
+      {
+        auth: {
+          username: 'S9uGApOZvuzVmv113sm80ykKB2GFcth1S0aNHoVdkZ8dHbdQ',
+          password: 'LQFyMIE1FDsOAsGI7dmkgrozQGY7A6Qf9iN1tG2AgHKu7xtAZRKEkqKn9vGGGMs7',
+        },
+      }
+    );
+
+    const accessToken = tokenResponse.data.access_token;
+
+    // Make payment request
+    const paymentResponse = await axios.post(
+      'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
+      {
+        BusinessShortCode: '940609',
+        Password: 'YOUR_PASSWORD',
+        Timestamp: 'YYYYMMDDHHMMSS',
+        TransactionType: 'CustomerPayBillOnline',
+        Amount: '1', // Specify payment amount
+        PartyA: '0791495274',
+        PartyB: '940609',
+        PhoneNumber: '0791495274',
+        CallBackURL: 'https://example.com/callback',
+        AccountReference: 'Test',
+        TransactionDesc: 'Test payment',
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    console.log('Payment request response:', paymentResponse.data);
+    // Handle payment response
+  } catch (error) {
+    console.error('Error making payment request:', error);
+    // Handle error
+  }
+};
+
+export default mpesaPaymentRequest;

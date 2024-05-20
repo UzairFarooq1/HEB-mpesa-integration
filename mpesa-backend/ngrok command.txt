@@ -1,0 +1,20 @@
+ngrok http --domain=lucky-civet-jolly.ngrok-free.app 3070
+ lt --port 3070 //running localTunnel
+ npm install -g localtunnel //install localTunnel
+ lt --subdomain heb-events-url --port 3070 
+
+
+
+Halal app
+Short Code: 4326998
+Passkey: a2153b2f0735e3b2256ab3ccfdbebe38a11756ed910cb7bd2c6f8c106839bac8
+consumer_key: "pM1cozMMsZMMI2vEBAh5uaAjFlOyvfGkwRxFXsdIViP7Toki"
+Consumer Secret: "O4gWvHyp3IhaJran4F8j4Kl1qDmHoHKCG8AkAsE0GN67Dyf1TvhDoaRDBr2FGecw"
+
+
+
+Techno app
+BusinessShortCode: "940609",
+Passkey: "f1fadfeb93317ffa07b4cc617b743afadaad3b9be59cdb46e9b1f38613363065",
+consumer_key = "PY6xk4z6jBZVLSMzmJJsIisgQ6SlAsJG3HJG84JcpIZ8XbZu"; // REPLACE IT WITH YOUR CONSUMER KEY
+const consumer_secret = "9ZxJL36hqj5dJMsBAgdmqp9Q5Sk56Cz3kcdGJNzcN323xc1Y3zArC9u21wmFpVCW"; // REPLACE IT WITH YOUR CONSUMER SECRET
