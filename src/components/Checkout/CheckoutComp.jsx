@@ -81,7 +81,6 @@ const CheckoutComp = ({ pendingTickets }) => {
     updatedFormData[index] = { ...updatedFormData[index], [field]: value };
     setFormData(updatedFormData);
   };
-  
   const handleCompletePayment = async () => {
     try {
       const db = getFirestore();
@@ -131,8 +130,9 @@ const CheckoutComp = ({ pendingTickets }) => {
       const startTime = Date.now();
       let paidTicketIds = [];
       let ticketPaid = false;
+      const maxTimeout = 10000; // 10 seconds timeout
   
-      while (Date.now() - startTime < 50000 && !ticketPaid) {
+      while (Date.now() - startTime < maxTimeout) {
         const response = await fetch('http://localhost:3070/api/paidtickets');
         if (!response.ok) {
           throw new Error('Failed to fetch paid tickets');
@@ -218,6 +218,7 @@ const CheckoutComp = ({ pendingTickets }) => {
       setIsPaymentProcessing(false);
     }
   };
+  
   
 
   
