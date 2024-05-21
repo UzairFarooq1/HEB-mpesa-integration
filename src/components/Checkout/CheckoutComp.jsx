@@ -210,6 +210,9 @@ const CheckoutComp = ({ pendingTickets }) => {
         setFormData([]); // Reset form data
       } else {
         setPaymentFailed(true);
+        setTimeout(() => {
+          navigate(`/event/${pendingTickets[0].eventId}`);
+        }, 3000);
       }
     } catch (error) {
       console.error("Error completing payment:", error);
