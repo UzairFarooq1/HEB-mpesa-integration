@@ -133,7 +133,7 @@ const CheckoutComp = ({ pendingTickets }) => {
       const maxTimeout = 10000; // 10 seconds timeout
   
       while (Date.now() - startTime < maxTimeout) {
-        const response = await fetch('http://localhost:3070/api/paidtickets');
+        const response = await fetch('https://heb-mpesa-integration.vercel.app/api/paidtickets');
         if (!response.ok) {
           throw new Error('Failed to fetch paid tickets');
         }
