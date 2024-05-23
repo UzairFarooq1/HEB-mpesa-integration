@@ -1,30 +1,31 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { getFirestore, doc, getDoc,getDocs, addDoc, deleteDoc, collection } from 'firebase/firestore';
-import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  collection,
+} from "firebase/firestore";
+import styled from "styled-components";
+import { useNavigate } from "react-router-dom";
 import { IoIosArrowRoundBack } from "react-icons/io";
-import './checkoutstyle.css'; // Import the CSS file
-
+import "./checkoutstyle.css"; // Import the CSS file
 
 let mpesaReceipt;
 
-
-
 const CheckoutComp = ({ pendingTickets }) => {
-  const [promoCode, setPromoCode] = useState('');
+  const [promoCode, setPromoCode] = useState("");
   const [formData, setFormData] = useState([]);
   const [expiredTickets, setExpiredTickets] = useState([]);
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
   const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false);
-  const [paymentFailed, setPaymentFailed] = useState(false); 
-  // const [mpesaReceipt, setmpesaReceipt] = useState(false); 
-
+  const [paymentFailed, setPaymentFailed] = useState(false);
+  // const [mpesaReceipt, setmpesaReceipt] = useState(false);
 
   const navigate = useNavigate();
-  
-
-
 
   useEffect(() => {
     const checkPendingTickets = async () => {
@@ -32,28 +33,44 @@ const CheckoutComp = ({ pendingTickets }) => {
         pendingTickets.forEach(async (ticket) => {
           const eventId = ticket.eventId; // Extract eventId from the pending ticket
           const db = getFirestore();
-          const eventRef = doc(db, 'events', eventId);
+          const eventRef = doc(db, "events", eventId);
           const eventSnap = await getDoc(eventRef);
           const eventDoc = eventSnap.data();
 
           if (eventDoc && eventDoc.pendingTickets) {
             const pendingTicketIds = Object.keys(eventDoc.pendingTickets);
-            const existingTickets = await Promise.all(pendingTicketIds.map(async (ticketId) => {
-              const ticketDoc = doc(db, 'events', eventId, 'pendingTickets', ticketId);
-              const ticketSnap = await getDoc(ticketDoc);
-              return ticketSnap.exists();
-            }));
+            const existingTickets = await Promise.all(
+              pendingTicketIds.map(async (ticketId) => {
+                const ticketDoc = doc(
+                  db,
+                  "events",
+                  eventId,
+                  "pendingTickets",
+                  ticketId
+                );
+                const ticketSnap = await getDoc(ticketDoc);
+                return ticketSnap.exists();
+              })
+            );
 
             // Check if any pending tickets no longer exist and handle accordingly
-            const ticketsExist = existingTickets.every(ticketExists => ticketExists);
+            const ticketsExist = existingTickets.every(
+              (ticketExists) => ticketExists
+            );
             if (!ticketsExist) {
               // Handle case where some pending tickets do not exist
               console.log("Some pending tickets have expired");
               // Set the expired tickets
-              setExpiredTickets(pendingTickets.filter(ticket => !existingTickets.includes(ticket.id)));
+              setExpiredTickets(
+                pendingTickets.filter(
+                  (ticket) => !existingTickets.includes(ticket.id)
+                )
+              );
               // Display message to user and prompt to choose tickets again
               // Display alert to user
-              alert("Your pending tickets have expired. You will be redirected to the Event Details page.");
+              alert(
+                "Your pending tickets have expired. You will be redirected to the Event Details page."
+              );
               // Redirect user to EventDetails page after 3 seconds
               setTimeout(() => {
                 navigate(`/event/${eventId}`);
@@ -84,144 +101,179 @@ const CheckoutComp = ({ pendingTickets }) => {
   const handleCompletePayment = async () => {
     try {
       const db = getFirestore();
-  
+
       // Fetch event details and map to formDataArray
-      const formDataArray = await Promise.all(pendingTickets.map(async (ticket, index) => {
-        const eventRef = doc(db, 'events', ticket.eventId);
-        const eventSnapshot = await getDoc(eventRef);
-  
-        if (!eventSnapshot.exists()) {
-          throw new Error(`Event with ID ${ticket.eventId} not found`);
-        }
-  
-        const eventData = eventSnapshot.data();
-        return {
-          email: formData[index]?.email || '',
-          phone_number: formData[index]?.phone_number || '',
-          gender: formData[index]?.gender || '',
-          full_name: formData[index]?.full_name || '',
-          type: ticket.type,
-          amount: subtotal,
-          eventDesc: eventData.eventDesc || '' // Add eventDesc to formDataArray
-        };
-      }));
-  
+      const formDataArray = await Promise.all(
+        pendingTickets.map(async (ticket, index) => {
+          const eventRef = doc(db, "events", ticket.eventId);
+          const eventSnapshot = await getDoc(eventRef);
+
+          if (!eventSnapshot.exists()) {
+            throw new Error(`Event with ID ${ticket.eventId} not found`);
+          }
+
+          const eventData = eventSnapshot.data();
+          return {
+            email: formData[index]?.email || "",
+            phone_number: formData[index]?.phone_number || "",
+            gender: formData[index]?.gender || "",
+            full_name: formData[index]?.full_name || "",
+            type: ticket.type,
+            amount: subtotal,
+            eventDesc: eventData.eventDesc || "", // Add eventDesc to formDataArray
+          };
+        })
+      );
+
       setIsPaymentProcessing(true);
       setPaymentFailed(false);
-  
-      await Promise.all(formData.map(async (data, index) => {
-        const phone = formData[index]?.phone_number;
-        const amount = subtotal;
-        const ticketId = pendingTickets[index].ticketId;
-  
-        const response = await fetch("https://mpesa-backend-api.vercel.app/api/stkpush", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ phone: phone, amount: amount, ticketId: ticketId }),
-        });
-  
-        if (!response.ok) {
-          throw new Error("Failed to initiate payment for ticket: " + ticketId);
-        }
-      }));
-  
+
+      await Promise.all(
+        formData.map(async (data, index) => {
+          const phone = formData[index]?.phone_number;
+          const amount = subtotal;
+          const ticketId = pendingTickets[index].ticketId;
+
+          const response = await fetch(
+            "https://mpesa-backend-api.vercel.app/api/stkpush",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                phone: phone,
+                amount: amount,
+                ticketId: ticketId,
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(
+              "Failed to initiate payment for ticket: " + ticketId
+            );
+          }
+        })
+      );
+
       const startTime = Date.now();
       let paidTicketIds = [];
       let ticketPaid = false;
       const maxTimeout = 20000; // 10 seconds timeout
-  
+
       while (Date.now() - startTime < maxTimeout) {
         let paidTicketIds = [];
 
         const paidTicketsCollection = collection(db, "paidTickets");
         const paidTicketsSnapshot = await getDocs(paidTicketsCollection);
-        
-        paidTicketsSnapshot.forEach(doc => {
+
+        paidTicketsSnapshot.forEach((doc) => {
           paidTicketIds.push(doc.data().ticketId);
         });
-        paidTicketsSnapshot.forEach(doc => {
+        paidTicketsSnapshot.forEach((doc) => {
           const ticketData = doc.data();
           if (ticketData && ticketData.mpesaReceiptNumber) {
             // If mpesaReceiptNumber exists in the document, assign it to mpesaReceiptNumber variable
             mpesaReceipt = ticketData.mpesaReceiptNumber;
           }
         });
-  
-        ticketPaid = pendingTickets.every(ticket => paidTicketIds.includes(ticket.ticketId));
-  
+
+        ticketPaid = pendingTickets.every((ticket) =>
+          paidTicketIds.includes(ticket.ticketId)
+        );
+
         if (ticketPaid) {
-          const response = await fetch('https://mpesa-backend-api.vercel.app/api/paidtickets');
+          const response = await fetch(
+            "https://mpesa-backend-api.vercel.app/api/paidtickets"
+          );
           if (!response.ok) {
-            console.error('Failed to fetch paid tickets');
-            throw new Error('Failed to fetch paid tickets');
+            console.error("Failed to fetch paid tickets");
+            throw new Error("Failed to fetch paid tickets");
           }
-          console.log('Received mpesaReceiptNumber:', mpesaReceipt);
-          
+          console.log("Received mpesaReceiptNumber:", mpesaReceipt);
+
           break; // Exit the loop if all tickets are paid
         } else {
-          console.log('Waiting for payment...');
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          console.log("Waiting for payment...");
+          await new Promise((resolve) => setTimeout(resolve, 5000));
         }
-              // Log ticketId and mpesaReceiptNumber for each comparison
-      console.log('Comparing ticketId:', pendingTickets.map(ticket => ticket.ticketId));
-      console.log('Current paidTicketIds:', paidTicketIds);
+        // Log ticketId and mpesaReceiptNumber for each comparison
+        console.log(
+          "Comparing ticketId:",
+          pendingTickets.map((ticket) => ticket.ticketId)
+        );
+        console.log("Current paidTicketIds:", paidTicketIds);
       }
-  
+
       if (ticketPaid) {
-        await Promise.all(pendingTickets.map(async (ticket, index) => {
-          // Check if the ticket is still pending
-          const ticketRef = doc(db, 'events', ticket.eventId, 'pendingTickets', ticket.ticketId);
-          const ticketSnapshot = await getDoc(ticketRef);
-  
-          if (!ticketSnapshot.exists()) {
-            // If the ticket does not exist in the pendingTickets collection, show an alert and redirect to the event page
-            alert("The timeout for this ticket has expired. You will be redirected to the Event Details page.");
-            navigate(`/event/${ticket.eventId}`);
-            return; // Skip processing this ticket
-          }
-  
-          // Proceed with registering the ticket
-          const ticketData = {
-            ...formData[index],
-            price: ticket.price,
-            ticketId: ticket.ticketId,
-            mpesaReceiptNumber: mpesaReceipt,
-            type: ticket.type,
-            eventId: ticket.eventId,
-            validOn: ticket.validOn
-          };
-  
-          await addDoc(collection(db, 'events', ticket.eventId, 'tickets'), ticketData);
-          await deleteDoc(ticketRef);
-          setTimeout(() => {
-            deleteDoc(ticketRef)
-          }, 3000);
-        }));
-  
+        await Promise.all(
+          pendingTickets.map(async (ticket, index) => {
+            // Check if the ticket is still pending
+            const ticketRef = doc(
+              db,
+              "events",
+              ticket.eventId,
+              "pendingTickets",
+              ticket.ticketId
+            );
+            const ticketSnapshot = await getDoc(ticketRef);
+
+            if (!ticketSnapshot.exists()) {
+              // If the ticket does not exist in the pendingTickets collection, show an alert and redirect to the event page
+              alert(
+                "The timeout for this ticket has expired. You will be redirected to the Event Details page."
+              );
+              navigate(`/event/${ticket.eventId}`);
+              return; // Skip processing this ticket
+            }
+
+            // Proceed with registering the ticket
+            const ticketData = {
+              ...formData[index],
+              price: ticket.price,
+              ticketId: ticket.ticketId,
+              mpesaReceiptNumber: mpesaReceipt,
+              type: ticket.type,
+              eventId: ticket.eventId,
+              validOn: ticket.validOn,
+            };
+
+            await addDoc(
+              collection(db, "events", ticket.eventId, "tickets"),
+              ticketData
+            );
+            await deleteDoc(ticketRef);
+            setTimeout(() => {
+              deleteDoc(ticketRef);
+            }, 3000);
+          })
+        );
+
         // Update formDataArray with mpesaReceipt and send email
-        await Promise.all(pendingTickets.map(async (ticket, index) => {
-          const updatedFormDataArray = formDataArray.map(data => ({
-            ...data,
-            ticketId: ticket.ticketId,
-            mpesaReceipt: mpesaReceipt // Add mpesaReceipt to each entry
-          }));
-          const formData = updatedFormDataArray[index];
-  
-          await fetch('https://email-server-flax.vercel.app/send-email', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(formData), // Include eventDesc and mpesaReceipt in the data sent to the server
-          });
-        }));
-  
+        await Promise.all(
+          pendingTickets.map(async (ticket, index) => {
+            const updatedFormDataArray = formDataArray.map((data) => ({
+              ...data,
+              ticketId: ticket.ticketId,
+              mpesaReceipt: mpesaReceipt, // Add mpesaReceipt to each entry
+            }));
+            const formData = updatedFormDataArray[index];
+
+            await fetch("https://email-server-flax.vercel.app/send-email", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(formData), // Include eventDesc and mpesaReceipt in the data sent to the server
+            });
+          })
+        );
+
         setIsPaymentProcessing(false);
         setIsPaymentConfirmed(true);
         setTimeout(() => {
-          navigate('/');
+          navigate("/");
         }, 3000);
         setFormData([]); // Reset form data
       } else {
@@ -236,28 +288,18 @@ const CheckoutComp = ({ pendingTickets }) => {
       setTimeout(() => {
         navigate(`/event/${pendingTickets[0].eventId}`);
       }, 3000);
-
     } finally {
       setIsPaymentProcessing(false);
     }
   };
-  
-  
 
-  
-  
-  
   // const verifyPaymentStatus = async (transactionId) => {
   //   // Implement this function to check payment status with M-Pesa API
   //   // Return 'completed' if payment is successful, otherwise return 'pending' or 'failed'
   // };
 
-  
-  
-  
-
   const handleApplyPromoCode = () => {
-    console.log('Applying promo code:', promoCode);
+    console.log("Applying promo code:", promoCode);
   };
 
   const subtotal = pendingTickets.reduce((acc, ticket) => {
@@ -290,10 +332,14 @@ const CheckoutComp = ({ pendingTickets }) => {
             <div className="bg-white h-full">
               <h2 className="font-bold text-lime-400">Order Summary</h2>
               <p className="flex items-center font-light text-sm">
-                <IoIosArrowRoundBack />Back
+                <IoIosArrowRoundBack />
+                Back
               </p>
               <h4 className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
-                Sub-Total <span className="font-bold ml-8 text-lime-400">Ksh. {subtotal.toFixed(2)}</span>
+                Sub-Total{" "}
+                <span className="font-bold ml-8 text-lime-400">
+                  Ksh. {subtotal.toFixed(2)}
+                </span>
               </h4>
               <form className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
                 <input
@@ -312,7 +358,10 @@ const CheckoutComp = ({ pendingTickets }) => {
                 </button>
               </form>
               <h4 className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
-                Total <span className="font-bold ml-8 text-lime-400">Ksh. {subtotal.toFixed(2)}</span>
+                Total{" "}
+                <span className="font-bold ml-8 text-lime-400">
+                  Ksh. {subtotal.toFixed(2)}
+                </span>
               </h4>
             </div>
           </div>
@@ -323,8 +372,13 @@ const CheckoutComp = ({ pendingTickets }) => {
               {pendingTickets.map((ticket, index) => (
                 <div key={index}>
                   <h2 className="font-semibold">Attendee {index + 1}</h2>
-                  {expiredTickets.some(expiredTicket => expiredTicket.id === ticket.id) ? (
-                    <p>The ticket associated with this attendee has expired. Please choose the number of tickets again.</p>
+                  {expiredTickets.some(
+                    (expiredTicket) => expiredTicket.id === ticket.id
+                  ) ? (
+                    <p>
+                      The ticket associated with this attendee has expired.
+                      Please choose the number of tickets again.
+                    </p>
                   ) : (
                     <form>
                       <div className="flex flex-col">
@@ -332,8 +386,14 @@ const CheckoutComp = ({ pendingTickets }) => {
                           <div className="border border-gray-300 rounded-sm mr-2">
                             <input
                               type="text"
-                              value={formData[index]?.email || ''}
-                              onChange={(e) => handleInputChange(index, 'email', e.target.value)}
+                              value={formData[index]?.email || ""}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  index,
+                                  "email",
+                                  e.target.value
+                                )
+                              }
                               placeholder="Email:"
                               className="outline-none px-2 py-1 w-3/4"
                             />
@@ -341,8 +401,14 @@ const CheckoutComp = ({ pendingTickets }) => {
                           <div className="border border-gray-300 rounded-sm">
                             <input
                               type="text"
-                              value={formData[index]?.phone_number || ''}
-                              onChange={(e) => handleInputChange(index, 'phone_number', e.target.value)}
+                              value={formData[index]?.phone_number || ""}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  index,
+                                  "phone_number",
+                                  e.target.value
+                                )
+                              }
                               placeholder="Phone number:"
                               className="outline-none px-2 py-1 w-3/4"
                             />
@@ -352,16 +418,28 @@ const CheckoutComp = ({ pendingTickets }) => {
                           <div className="border border-gray-300 rounded-sm mr-2">
                             <input
                               type="text"
-                              value={formData[index]?.full_name || ''}
-                              onChange={(e) => handleInputChange(index, 'full_name', e.target.value)}
+                              value={formData[index]?.full_name || ""}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  index,
+                                  "full_name",
+                                  e.target.value
+                                )
+                              }
                               placeholder="Fullname:"
                               className="outline-none px-2 py-1 w-3/4"
                             />
                           </div>
                           <div className="border border-gray-300 rounded-sm">
                             <select
-                              value={formData[index]?.gender || ''}
-                              onChange={(e) => handleInputChange(index, 'gender', e.target.value)}
+                              value={formData[index]?.gender || ""}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  index,
+                                  "gender",
+                                  e.target.value
+                                )
+                              }
                               className="outline-none px-2 py-1 w-4/4"
                             >
                               <option value="">Gender</option>
@@ -396,10 +474,12 @@ const CheckoutComp = ({ pendingTickets }) => {
                 </div>
                 <div className="border border-gray-300 rounded-sm">
                   <input
-                    type="number"
-                    value={promoCode}
-                    onChange={(e) => setPromoCode(e.target.value)}
-                    placeholder="Phone Number:"
+                    type="text"
+                    value={formData[index]?.phone_number || ""}
+                    onChange={(e) =>
+                      handleInputChange(index, "phone_number", e.target.value)
+                    }
+                    placeholder="Phone number:"
                     className="outline-none px-2 py-1 w-3/4"
                   />
                 </div>
@@ -421,14 +501,14 @@ const CheckoutComp = ({ pendingTickets }) => {
         <div className="loader-overlay">
           <div>
             <div className="spinner"></div>
-            <p className="loader-text">Payment verification failed. Please try again or contact support.</p>
+            <p className="loader-text">
+              Payment verification failed. Please try again or contact support.
+            </p>
           </div>
         </div>
       )}
     </>
   );
-
-  
 };
 
 export default CheckoutComp;
