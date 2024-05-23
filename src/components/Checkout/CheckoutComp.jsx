@@ -475,9 +475,9 @@ const CheckoutComp = ({ pendingTickets }) => {
                 <div className="border border-gray-300 rounded-sm">
                   <input
                     type="text"
-                    value={formData[index]?.phone_number || ""}
+                    value={formData[0]?.phone_number || ""}
                     onChange={(e) =>
-                      handleInputChange(index, "phone_number", e.target.value)
+                      handleInputChange(0, "phone_number", e.target.value)
                     }
                     placeholder="Phone number:"
                     className="outline-none px-2 py-1 w-3/4"
