@@ -204,6 +204,7 @@ const CheckoutComp = ({ pendingTickets }) => {
         await Promise.all(pendingTickets.map(async (ticket, index) => {
           const updatedFormDataArray = formDataArray.map(data => ({
             ...data,
+            ticketId: ticket.ticketId,
             mpesaReceipt: mpesaReceipt // Add mpesaReceipt to each entry
           }));
           const formData = updatedFormDataArray[index];
