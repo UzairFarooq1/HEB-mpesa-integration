@@ -161,26 +161,26 @@ const EventCard = ({ searchQuery }) => {
     fetchEvents();
   }, [db]);
 
-  useEffect(() => {
-    const fetchEventImages = async () => {
-      try {
-        const storage = getStorage();
-        const imagesPromises = events.map(async (event) => {
-          const pictureRef = ref(storage, `EventPosters/${event.id}/${event.id}`);
-          const pictureUrl = await getDownloadURL(pictureRef);
-          return { eventId: event.id, url: pictureUrl };
-        });
+  // useEffect(() => {
+  //   const fetchEventImages = async () => {
+  //     try {
+  //       const storage = getStorage();
+  //       const imagesPromises = events.map(async (event) => {
+  //         const pictureRef = ref(storage, `EventPosters/${event.id}/${event.id}`);
+  //         const pictureUrl = await getDownloadURL(pictureRef);
+  //         return { eventId: event.id, url: pictureUrl };
+  //       });
 
-        const images = await Promise.all(imagesPromises);
-        const imagesObject = Object.assign({}, ...images);
-        setEventImages(imagesObject);
-      } catch (error) {
-        console.error('Error fetching event images:', error);
-      }
-    };
+  //       const images = await Promise.all(imagesPromises);
+  //       const imagesObject = Object.assign({}, ...images);
+  //       setEventImages(imagesObject);
+  //     } catch (error) {
+  //       console.error('Error fetching event images:', error);
+  //     }
+  //   };
 
-    fetchEventImages();
-  }, [events]);
+  //   fetchEventImages();
+  // }, [events]);
 
   // Filter events based on the search query
   const filteredEvents = events.filter((event) =>
