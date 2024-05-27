@@ -123,7 +123,7 @@ const CheckoutComp = ({ pendingTickets }) => {
             full_name: formData[index]?.full_name || "",
             type: ticket.type,
             amount: subtotal,
-            eventDesc: eventData.eventDesc || "", // Add eventDesc to formDataArray
+            eventDesc: event, // Add eventDesc to formDataArray
           };
         })
       );
@@ -136,7 +136,7 @@ const CheckoutComp = ({ pendingTickets }) => {
           const phone = formData[index]?.phone_number;
           const amount = subtotal;
           const ticketId = pendingTickets[index].ticketId;
-          const eventDesc = event;
+          const event = event;
 
           const response = await fetch(
             "https://mpesa-backend-api.vercel.app/api/stkpush",
