@@ -15,6 +15,7 @@ import { IoIosArrowRoundBack } from "react-icons/io";
 import "./checkoutstyle.css"; // Import the CSS file
 
 let mpesaReceipt;
+let eventName;
 
 const CheckoutComp = ({ pendingTickets }) => {
   const [promoCode, setPromoCode] = useState("");
@@ -113,6 +114,7 @@ const CheckoutComp = ({ pendingTickets }) => {
           }
 
           const eventData = eventSnapshot.data();
+          eventName = eventData.eventDesc || "";
           return {
             email: formData[index]?.email || "",
             phone_number: formData[index]?.phone_number || "",
@@ -120,7 +122,7 @@ const CheckoutComp = ({ pendingTickets }) => {
             full_name: formData[index]?.full_name || "",
             type: ticket.type,
             amount: subtotal,
-            eventDesc: eventData.eventDesc || "", // Add eventDesc to formDataArray
+            eventDesc: eventName, // Add eventDesc to formDataArray
           };
         })
       );
@@ -133,6 +135,7 @@ const CheckoutComp = ({ pendingTickets }) => {
           const phone = formData[index]?.phone_number;
           const amount = subtotal;
           const ticketId = pendingTickets[index].ticketId;
+          const eventName = eventName;
 
           const response = await fetch(
             "https://mpesa-backend-api.vercel.app/api/stkpush",
@@ -145,6 +148,7 @@ const CheckoutComp = ({ pendingTickets }) => {
                 phone: phone,
                 amount: amount,
                 ticketId: ticketId,
+
               }),
             }
           );
