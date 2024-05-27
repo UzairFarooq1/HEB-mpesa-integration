@@ -158,22 +158,29 @@ const CheckoutComp = ({ pendingTickets }) => {
       );
   
       const startTime = Date.now();
+      let paidTicketIds = [];
       let ticketPaid = false;
       const maxTimeout = 20000; // 20 seconds timeout
   
       while (Date.now() - startTime < maxTimeout) {
-        const response = await fetch(
-          "https://mpesa-backend-api.vercel.app/api/paidtickets"
-        );
-        if (!response.ok) {
-          console.error("Failed to fetch paid tickets");
-          throw new Error("Failed to fetch paid tickets");
-        }
+        const paidTicketsCollection = collection(db, "paidTickets");
+        const paidTicketsSnapshot = await getDocs(paidTicketsCollection);
   
-        const paidTickets = await response.json();
-        ticketPaid = paidTickets.every(ticket => ticket.resultCode === 0);
+        paidTicketIds = [];
+        paidTicketsSnapshot.forEach((doc) => {
+          const ticketData = doc.data();
+          if (ticketData && ticketData.mpesaReceiptNumber && ticketData.resultCode === 0) {
+            paidTicketIds.push(ticketData.ticketId);
+            mpesaReceipt = ticketData.mpesaReceiptNumber;
+          }
+        });
+  
+        ticketPaid = pendingTickets.every((ticket) =>
+          paidTicketIds.includes(ticket.ticketId)
+        );
   
         if (ticketPaid) {
+          console.log("Received mpesaReceiptNumber:", mpesaReceipt);
           break; // Exit the loop if all tickets are paid
         } else {
           console.log("Waiting for payment...");
@@ -203,6 +210,10 @@ const CheckoutComp = ({ pendingTickets }) => {
               return; // Skip processing this ticket
             }
   
+            if (!mpesaReceipt) {
+              throw new Error("mpesaReceipt is not set");
+            }
+  
             // Proceed with registering the ticket
             const ticketData = {
               ...formData[index],
@@ -219,9 +230,6 @@ const CheckoutComp = ({ pendingTickets }) => {
               ticketData
             );
             await deleteDoc(ticketRef);
-            setTimeout(() => {
-              deleteDoc(ticketRef);
-            }, 3000);
           })
         );
   
@@ -267,6 +275,7 @@ const CheckoutComp = ({ pendingTickets }) => {
       setIsPaymentProcessing(false);
     }
   };
+  
   
 
   // const verifyPaymentStatus = async (transactionId) => {
