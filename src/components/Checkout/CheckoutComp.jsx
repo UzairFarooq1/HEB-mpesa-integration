@@ -169,7 +169,7 @@ const CheckoutComp = ({ pendingTickets }) => {
         ticketPaid = paidTickets.every(ticket => ticket.resultCode === 0);
   
         if (ticketPaid) {
-          mpesaReceipt = paidTickets.mpesaReceiptNumber
+          mpesaReceiptNumber = paidTickets[0]?.mpesaReceiptNumber;
           break;
         } else {
           console.log("Waiting for payment...");
