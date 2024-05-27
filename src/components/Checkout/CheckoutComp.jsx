@@ -112,9 +112,10 @@ const CheckoutComp = ({ pendingTickets }) => {
           if (!eventSnapshot.exists()) {
             throw new Error(`Event with ID ${ticket.eventId} not found`);
           }
-          event = eventData.eventDesc || "";
+
 
           const eventData = eventSnapshot.data();
+          event = eventData.eventDesc || "";
           return {
             email: formData[index]?.email || "",
             phone_number: formData[index]?.phone_number || "",
