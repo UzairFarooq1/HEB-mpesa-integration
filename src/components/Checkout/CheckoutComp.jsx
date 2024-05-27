@@ -103,18 +103,16 @@ const CheckoutComp = ({ pendingTickets }) => {
   const handleCompletePayment = async () => {
     try {
       const db = getFirestore();
-
-      // Fetch event details and map to formDataArray
+  
       const formDataArray = await Promise.all(
         pendingTickets.map(async (ticket, index) => {
           const eventRef = doc(db, "events", ticket.eventId);
           const eventSnapshot = await getDoc(eventRef);
-
+  
           if (!eventSnapshot.exists()) {
             throw new Error(`Event with ID ${ticket.eventId} not found`);
           }
-
-
+  
           const eventData = eventSnapshot.data();
           eventName = eventData.eventDesc || "";
           return {
@@ -124,53 +122,46 @@ const CheckoutComp = ({ pendingTickets }) => {
             full_name: formData[index]?.full_name || "",
             type: ticket.type,
             amount: subtotal,
-            eventDesc: eventName, // Add eventDesc to formDataArray
+            eventDesc: eventName,
           };
         })
       );
-
+  
       setIsPaymentProcessing(true);
       setPaymentFailed(false);
-
+  
       await Promise.all(
         formData.map(async (data, index) => {
           const phone = formData[index]?.phone_number;
           const amount = subtotal;
           const ticketId = pendingTickets[index].ticketId;
           const event = eventName;
-
-          const response = await fetch(
-            "https://mpesa-backend-api.vercel.app/api/stkpush",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                phone: phone,
-                amount: amount,
-                ticketId: ticketId,
-                event : event,
-              }),
-            }
-          );
-
+  
+          const response = await fetch("https://mpesa-backend-api.vercel.app/api/stkpush", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              phone: phone,
+              amount: amount,
+              ticketId: ticketId,
+              event : event,
+            }),
+          });
+  
           if (!response.ok) {
-            throw new Error(
-              "Failed to initiate payment for ticket: " + ticketId
-            );
+            throw new Error("Failed to initiate payment for ticket: " + ticketId);
           }
         })
       );
-
+  
       const startTime = Date.now();
       let ticketPaid = false;
       const maxTimeout = 20000; // 20 seconds timeout
   
       while (Date.now() - startTime < maxTimeout) {
-        const response = await fetch(
-          "https://mpesa-backend-api.vercel.app/api/paidtickets"
-        );
+        const response = await fetch("https://mpesa-backend-api.vercel.app/api/paidtickets");
         if (!response.ok) {
           console.error("Failed to fetch paid tickets");
           throw new Error("Failed to fetch paid tickets");
@@ -180,7 +171,7 @@ const CheckoutComp = ({ pendingTickets }) => {
         ticketPaid = paidTickets.every(ticket => ticket.resultCode === 0);
   
         if (ticketPaid) {
-          break; // Exit the loop if all tickets are paid
+          break;
         } else {
           console.log("Waiting for payment...");
           await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -190,26 +181,15 @@ const CheckoutComp = ({ pendingTickets }) => {
       if (ticketPaid) {
         await Promise.all(
           pendingTickets.map(async (ticket, index) => {
-            // Check if the ticket is still pending
-            const ticketRef = doc(
-              db,
-              "events",
-              ticket.eventId,
-              "pendingTickets",
-              ticket.ticketId
-            );
+            const ticketRef = doc(db, "events", ticket.eventId, "pendingTickets", ticket.ticketId);
             const ticketSnapshot = await getDoc(ticketRef);
   
             if (!ticketSnapshot.exists()) {
-              // If the ticket does not exist in the pendingTickets collection, show an alert and redirect to the event page
-              alert(
-                "The timeout for this ticket has expired. You will be redirected to the Event Details page."
-              );
+              alert("The timeout for this ticket has expired. You will be redirected to the Event Details page.");
               navigate(`/event/${ticket.eventId}`);
-              return; // Skip processing this ticket
+              return;
             }
   
-            // Proceed with registering the ticket
             const ticketData = {
               ...formData[index],
               price: ticket.price,
@@ -219,61 +199,56 @@ const CheckoutComp = ({ pendingTickets }) => {
               eventId: ticket.eventId,
               validOn: ticket.validOn,
             };
-
-            await addDoc(
-              collection(db, "events", ticket.eventId, "tickets"),
-              ticketData
-            );
+  
+            await addDoc(collection(db, "events", ticket.eventId, "tickets"), ticketData);
             await deleteDoc(ticketRef);
-            setTimeout(() => {
-              deleteDoc(ticketRef);
-            }, 3000);
           })
         );
-
-        // Update formDataArray with mpesaReceipt and send email
+  
         await Promise.all(
           pendingTickets.map(async (ticket, index) => {
             const updatedFormDataArray = formDataArray.map((data) => ({
               ...data,
               ticketId: ticket.ticketId,
               mpesaReceipt: mpesaReceipt,
-              event: eventName // Add mpesaReceipt to each entry
+              event: eventName
             }));
             const formData = updatedFormDataArray[index];
-
-            await fetch("https://email-server-flax.vercel.app/send-email", {
+  
+            await fetch("https://mpesa-backend-api.vercel.app/api/emailsender", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify(formData), // Include eventDesc and mpesaReceipt in the data sent to the server
+              body: JSON.stringify({
+                email: formData.email,
+                phone_number: formData.phone_number,
+                gender: formData.gender,
+                full_name: formData.full_name,
+                type: formData.type,
+                amount: formData.amount,
+                eventDesc: formData.eventDesc,
+                mpesaReceipt: formData.mpesaReceipt,
+                ticketId: formData.ticketId,
+              }),
             });
           })
         );
-
-        setIsPaymentProcessing(false);
-        setIsPaymentConfirmed(true);
-        setTimeout(() => {
-          navigate("/");
-        }, 3000);
-        setFormData([]); // Reset form data
+  
+        navigate("/paymentsuccess");
       } else {
         setPaymentFailed(true);
-        setTimeout(() => {
-          navigate(`/event/${pendingTickets[0].eventId}`);
-        }, 3000);
+        alert("The payment process was not completed within the expected timeframe. Please try again.");
       }
+  
     } catch (error) {
       console.error("Error completing payment:", error);
-      setPaymentFailed(true);
-      setTimeout(() => {
-        navigate(`/event/${pendingTickets[0].eventId}`);
-      }, 3000);
+      alert("An error occurred while completing the payment. Please try again.");
     } finally {
       setIsPaymentProcessing(false);
     }
   };
+  
 
   // const verifyPaymentStatus = async (transactionId) => {
   //   // Implement this function to check payment status with M-Pesa API
