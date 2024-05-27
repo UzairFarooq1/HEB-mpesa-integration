@@ -164,54 +164,29 @@ const CheckoutComp = ({ pendingTickets }) => {
       );
 
       const startTime = Date.now();
-      let paidTicketIds = [];
       let ticketPaid = false;
-      const maxTimeout = 20000; // 10 seconds timeout
-
+      const maxTimeout = 20000; // 20 seconds timeout
+  
       while (Date.now() - startTime < maxTimeout) {
-        let paidTicketIds = [];
-
-        const paidTicketsCollection = collection(db, "paidTickets");
-        const paidTicketsSnapshot = await getDocs(paidTicketsCollection);
-
-        paidTicketsSnapshot.forEach((doc) => {
-          paidTicketIds.push(doc.data().ticketId);
-        });
-        paidTicketsSnapshot.forEach((doc) => {
-          const ticketData = doc.data();
-          if (ticketData && ticketData.mpesaReceiptNumber) {
-            // If mpesaReceiptNumber exists in the document, assign it to mpesaReceiptNumber variable
-            mpesaReceipt = ticketData.mpesaReceiptNumber;
-          }
-        });
-
-        ticketPaid = pendingTickets.every((ticket) =>
-          paidTicketIds.includes(ticket.ticketId)
+        const response = await fetch(
+          "https://mpesa-backend-api.vercel.app/api/paidtickets"
         );
-
+        if (!response.ok) {
+          console.error("Failed to fetch paid tickets");
+          throw new Error("Failed to fetch paid tickets");
+        }
+  
+        const paidTickets = await response.json();
+        ticketPaid = paidTickets.every(ticket => ticket.resultCode === 0);
+  
         if (ticketPaid) {
-          const response = await fetch(
-            "https://mpesa-backend-api.vercel.app/api/paidtickets"
-          );
-          if (!response.ok) {
-            console.error("Failed to fetch paid tickets");
-            throw new Error("Failed to fetch paid tickets");
-          }
-          console.log("Received mpesaReceiptNumber:", mpesaReceipt);
-
           break; // Exit the loop if all tickets are paid
         } else {
           console.log("Waiting for payment...");
           await new Promise((resolve) => setTimeout(resolve, 5000));
         }
-        // Log ticketId and mpesaReceiptNumber for each comparison
-        console.log(
-          "Comparing ticketId:",
-          pendingTickets.map((ticket) => ticket.ticketId)
-        );
-        console.log("Current paidTicketIds:", paidTicketIds);
       }
-
+  
       if (ticketPaid) {
         await Promise.all(
           pendingTickets.map(async (ticket, index) => {
@@ -224,7 +199,7 @@ const CheckoutComp = ({ pendingTickets }) => {
               ticket.ticketId
             );
             const ticketSnapshot = await getDoc(ticketRef);
-
+  
             if (!ticketSnapshot.exists()) {
               // If the ticket does not exist in the pendingTickets collection, show an alert and redirect to the event page
               alert(
@@ -233,7 +208,7 @@ const CheckoutComp = ({ pendingTickets }) => {
               navigate(`/event/${ticket.eventId}`);
               return; // Skip processing this ticket
             }
-
+  
             // Proceed with registering the ticket
             const ticketData = {
               ...formData[index],
@@ -262,7 +237,8 @@ const CheckoutComp = ({ pendingTickets }) => {
             const updatedFormDataArray = formDataArray.map((data) => ({
               ...data,
               ticketId: ticket.ticketId,
-              mpesaReceipt: mpesaReceipt, // Add mpesaReceipt to each entry
+              mpesaReceipt: mpesaReceipt,
+              event: eventName // Add mpesaReceipt to each entry
             }));
             const formData = updatedFormDataArray[index];
 
