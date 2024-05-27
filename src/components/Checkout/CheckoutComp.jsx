@@ -134,8 +134,8 @@ const CheckoutComp = ({ pendingTickets }) => {
         formData.map(async (data, index) => {
           const phone = formData[index]?.phone_number;
           const amount = subtotal;
-          const ticketId = pendingTickets[index].ticketId;
-          const eventName = eventName;
+          // const ticketId = pendingTickets[index].ticketId;
+          const event = eventName;
 
           const response = await fetch(
             "https://mpesa-backend-api.vercel.app/api/stkpush",
@@ -147,7 +147,8 @@ const CheckoutComp = ({ pendingTickets }) => {
               body: JSON.stringify({
                 phone: phone,
                 amount: amount,
-                ticketId: ticketId,
+                // ticketId: ticketId,
+                event : event,
 
               }),
             }
