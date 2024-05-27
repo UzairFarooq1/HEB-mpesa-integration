@@ -25,8 +25,6 @@ const CheckoutComp = ({ pendingTickets }) => {
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
   const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false);
   const [paymentFailed, setPaymentFailed] = useState(false);
-  // const [mpesaReceipt, setmpesaReceipt] = useState(false);
-
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -171,11 +169,13 @@ const CheckoutComp = ({ pendingTickets }) => {
         ticketPaid = paidTickets.every(ticket => ticket.resultCode === 0);
   
         if (ticketPaid) {
+          mpesaReceipt = ticket.mpesaReceiptNumber;
           break;
         } else {
           console.log("Waiting for payment...");
           await new Promise((resolve) => setTimeout(resolve, 5000));
         }
+
       }
   
       if (ticketPaid) {
