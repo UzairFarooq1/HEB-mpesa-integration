@@ -120,7 +120,7 @@ const CheckoutComp = ({ pendingTickets }) => {
             full_name: formData[index]?.full_name || "",
             type: ticket.type,
             amount: subtotal,
-            eventDesc: eventData.eventDesc || "",
+            eventDesc: eventData.eventDesc || "", // Add eventDesc to formDataArray
           };
         })
       );
@@ -132,7 +132,7 @@ const CheckoutComp = ({ pendingTickets }) => {
       const paymentPromises = pendingTickets.map(async (ticket, index) => {
         const phone = formData[index]?.phone_number;
         const amount = subtotal;
-        const ticketId = ticket.ticketId;
+        const eventDesc = formDataArray[index].eventDesc; // Get eventDesc from formDataArray
   
         const response = await fetch(
           "https://mpesa-backend-api.vercel.app/api/stkpush",
@@ -144,13 +144,13 @@ const CheckoutComp = ({ pendingTickets }) => {
             body: JSON.stringify({
               phone: phone,
               amount: amount,
-              ticketId: ticketId,
+              eventDesc: eventDesc, // Pass eventDesc instead of ticketId
             }),
           }
         );
   
         if (!response.ok) {
-          throw new Error("Failed to initiate payment for ticket: " + ticketId);
+          throw new Error("Failed to initiate payment for event: " + eventDesc);
         }
       });
   
@@ -238,7 +238,7 @@ const CheckoutComp = ({ pendingTickets }) => {
             const updatedFormDataArray = formDataArray.map((data) => ({
               ...data,
               ticketId: ticket.ticketId,
-              mpesaReceipt: mpesaReceipt,
+              mpesaReceipt: mpesaReceipt, // Add mpesaReceipt to each entry
             }));
             const formData = updatedFormDataArray[index];
   
@@ -247,7 +247,7 @@ const CheckoutComp = ({ pendingTickets }) => {
               headers: {
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify(formData),
+              body: JSON.stringify(formData), // Include eventDesc and mpesaReceipt in the data sent to the server
             });
           })
         );
@@ -274,6 +274,7 @@ const CheckoutComp = ({ pendingTickets }) => {
       setIsPaymentProcessing(false);
     }
   };
+  
   
 
   
