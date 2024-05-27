@@ -215,7 +215,7 @@ const CheckoutComp = ({ pendingTickets }) => {
             }));
             const formData = updatedFormDataArray[index];
   
-            await fetch("https://mpesa-backend-api.vercel.app/api/emailsender", {
+            await fetch("https://mpesa-backend-api.vercel.app/api/send-email", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -235,7 +235,7 @@ const CheckoutComp = ({ pendingTickets }) => {
           })
         );
   
-        navigate("/paymentsuccess");
+        navigate("/");
       } else {
         setPaymentFailed(true);
         alert("The payment process was not completed within the expected timeframe. Please try again.");
