@@ -215,7 +215,7 @@ const CheckoutComp = ({ pendingTickets }) => {
             }));
             const formData = updatedFormDataArray[index];
   
-            await fetch("https://mpesa-backend-api.vercel.app/api/send-email", {
+            await fetch("https://mpesa-backend-api.vercel.app/send-email", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
