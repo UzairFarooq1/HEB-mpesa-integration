@@ -120,7 +120,7 @@ const CheckoutComp = ({ pendingTickets }) => {
             full_name: formData[index]?.full_name || "",
             type: ticket.type,
             amount: subtotal,
-            eventDesc: eventData.eventDesc || "", // Add eventDesc to formDataArray
+            eventDesc: eventData.eventDesc || "",
           };
         })
       );
@@ -128,34 +128,33 @@ const CheckoutComp = ({ pendingTickets }) => {
       setIsPaymentProcessing(true);
       setPaymentFailed(false);
   
-      await Promise.all(
-        formData.map(async (data, index) => {
-          const phone = formData[index]?.phone_number;
-          const amount = subtotal;
-          const ticketId = pendingTickets[index].ticketId;
+      // Initiate payment for each ticket
+      const paymentPromises = pendingTickets.map(async (ticket, index) => {
+        const phone = formData[index]?.phone_number;
+        const amount = subtotal;
+        const ticketId = ticket.ticketId;
   
-          const response = await fetch(
-            "https://mpesa-backend-api.vercel.app/api/stkpush",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                phone: phone,
-                amount: amount,
-                ticketId: ticketId,
-              }),
-            }
-          );
-  
-          if (!response.ok) {
-            throw new Error(
-              "Failed to initiate payment for ticket: " + ticketId
-            );
+        const response = await fetch(
+          "https://mpesa-backend-api.vercel.app/api/stkpush",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              phone: phone,
+              amount: amount,
+              ticketId: ticketId,
+            }),
           }
-        })
-      );
+        );
+  
+        if (!response.ok) {
+          throw new Error("Failed to initiate payment for ticket: " + ticketId);
+        }
+      });
+  
+      await Promise.all(paymentPromises);
   
       const startTime = Date.now();
       let paidTicketIds = [];
@@ -239,7 +238,7 @@ const CheckoutComp = ({ pendingTickets }) => {
             const updatedFormDataArray = formDataArray.map((data) => ({
               ...data,
               ticketId: ticket.ticketId,
-              mpesaReceipt: mpesaReceipt, // Add mpesaReceipt to each entry
+              mpesaReceipt: mpesaReceipt,
             }));
             const formData = updatedFormDataArray[index];
   
@@ -248,7 +247,7 @@ const CheckoutComp = ({ pendingTickets }) => {
               headers: {
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify(formData), // Include eventDesc and mpesaReceipt in the data sent to the server
+              body: JSON.stringify(formData),
             });
           })
         );
@@ -275,6 +274,7 @@ const CheckoutComp = ({ pendingTickets }) => {
       setIsPaymentProcessing(false);
     }
   };
+  
   
   
 
