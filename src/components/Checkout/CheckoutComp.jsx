@@ -24,7 +24,6 @@ const CheckoutComp = ({ pendingTickets }) => {
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
   const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false);
   const [paymentFailed, setPaymentFailed] = useState(false);
-  // const [mpesaReceipt, setmpesaReceipt] = useState(false);
 
   const navigate = useNavigate();
 
@@ -99,6 +98,7 @@ const CheckoutComp = ({ pendingTickets }) => {
     updatedFormData[index] = { ...updatedFormData[index], [field]: value };
     setFormData(updatedFormData);
   };
+
   const handleCompletePayment = async () => {
     try {
       const db = getFirestore();
@@ -134,7 +134,6 @@ const CheckoutComp = ({ pendingTickets }) => {
         formData.map(async (data, index) => {
           const phone = formData[index]?.phone_number;
           const amount = subtotal;
-          // const ticketId = pendingTickets[index].ticketId;
           const event = eventName;
 
           const response = await fetch(
@@ -147,42 +146,25 @@ const CheckoutComp = ({ pendingTickets }) => {
               body: JSON.stringify({
                 phone: phone,
                 amount: amount,
-                // ticketId: ticketId,
-                event : event,
-
+                event: event,
               }),
             }
           );
 
           if (!response.ok) {
-            throw new Error(
-              "Failed to initiate payment for ticket: " + ticketId
-            );
+            throw new Error("Failed to initiate payment for ticket");
           }
         })
       );
 
       const startTime = Date.now();
-      let paidTicketIds = [];
       let ticketPaid = false;
-      const maxTimeout = 20000; // 10 seconds timeout
+      const maxTimeout = 20000; // 20 seconds timeout
 
       while (Date.now() - startTime < maxTimeout) {
-        let paidTicketIds = [];
-
         const paidTicketsCollection = collection(db, "paidTickets");
         const paidTicketsSnapshot = await getDocs(paidTicketsCollection);
-
-        paidTicketsSnapshot.forEach((doc) => {
-          paidTicketIds.push(doc.data().ticketId);
-        });
-        paidTicketsSnapshot.forEach((doc) => {
-          const ticketData = doc.data();
-          if (ticketData && ticketData.mpesaReceiptNumber) {
-            // If mpesaReceiptNumber exists in the document, assign it to mpesaReceiptNumber variable
-            mpesaReceipt = ticketData.mpesaReceiptNumber;
-          }
-        });
+        const paidTicketIds = paidTicketsSnapshot.docs.map(doc => doc.data().ticketId);
 
         ticketPaid = pendingTickets.every((ticket) =>
           paidTicketIds.includes(ticket.ticketId)
@@ -249,9 +231,6 @@ const CheckoutComp = ({ pendingTickets }) => {
               ticketData
             );
             await deleteDoc(ticketRef);
-            setTimeout(() => {
-              deleteDoc(ticketRef);
-            }, 3000);
           })
         );
 
@@ -298,11 +277,6 @@ const CheckoutComp = ({ pendingTickets }) => {
     }
   };
 
-  // const verifyPaymentStatus = async (transactionId) => {
-  //   // Implement this function to check payment status with M-Pesa API
-  //   // Return 'completed' if payment is successful, otherwise return 'pending' or 'failed'
-  // };
-
   const handleApplyPromoCode = () => {
     console.log("Applying promo code:", promoCode);
   };
@@ -314,206 +288,155 @@ const CheckoutComp = ({ pendingTickets }) => {
   return (
     <>
       {isPaymentProcessing && (
-        <div className="loader-overlay">
-          <div>
-            <div className="spinner"></div>
-            <p className="loader-text">Processing payment... Please wait.</p>
-          </div>
+        <div className="loader-container">
+          <div className="loader"></div>
+          <p className="loader-message">Processing payment...</p>
         </div>
       )}
-
       {isPaymentConfirmed && (
-        <div className="loader-overlay">
-          <div>
-            <div className="spinner"></div>
-            <p className="loader-test">Payment confirmed! Redirecting...</p>
+        <div className="payment-success-container">
+          <div className="payment-success">
+            <h3>Payment Successful!</h3>
+            <p>Thank you for your purchase.</p>
           </div>
         </div>
       )}
-
-      {!isPaymentProcessing && !isPaymentConfirmed && (
-        <div className="flex flex-row my-20">
-          <div className="w-3/12 h-52 border rounded-xl ml-24 p-6 bg-white shadow">
-            <div className="bg-white h-full">
-              <h2 className="font-bold text-lime-400">Order Summary</h2>
-              <p className="flex items-center font-light text-sm">
-                <IoIosArrowRoundBack />
-                Back
-              </p>
-              <h4 className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
-                Sub-Total{" "}
-                <span className="font-bold ml-8 text-lime-400">
-                  Ksh. {subtotal.toFixed(2)}
-                </span>
-              </h4>
-              <form className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
-                <input
-                  type="text"
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value)}
-                  placeholder="Promo code:"
-                  className="outline-none px-2 py-1 w-3/4"
-                />
-                <button
-                  type="button"
-                  onClick={handleApplyPromoCode}
-                  className="font-bold ml-2 bg-orange-500 text-white px-4 py-1 rounded"
-                >
-                  Apply
-                </button>
-              </form>
-              <h4 className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
-                Total{" "}
-                <span className="font-bold ml-8 text-lime-400">
-                  Ksh. {subtotal.toFixed(2)}
-                </span>
-              </h4>
-            </div>
+      {paymentFailed && (
+        <div className="payment-failure-container">
+          <div className="payment-failure">
+            <h3>Payment Failed</h3>
+            <p>Please try again or contact support.</p>
           </div>
-          <div className="w-3/6 h-auto border rounded-xl ml-24 p-6 bg-white shadow">
-            <div className="bg-white h-full">
-              <h1 className="font-bold text-lime-400">Contact Information</h1>
-              <br />
+        </div>
+      )}
+      {!isPaymentProcessing && !isPaymentConfirmed && !paymentFailed && (
+        <>
+          <BackButton onClick={() => navigate(-1)}>
+            <IoIosArrowRoundBack size={24} />
+          </BackButton>
+          <CheckoutContainer>
+            <FormContainer>
               {pendingTickets.map((ticket, index) => (
-                <div key={index}>
-                  <h2 className="font-semibold">Attendee {index + 1}</h2>
-                  {expiredTickets.some(
-                    (expiredTicket) => expiredTicket.id === ticket.id
-                  ) ? (
-                    <p>
-                      The ticket associated with this attendee has expired.
-                      Please choose the number of tickets again.
-                    </p>
-                  ) : (
-                    <form>
-                      <div className="flex flex-col">
-                        <div className="flex items-center font-semibold text-sm rounded-sm p-1 m-1">
-                          <div className="border border-gray-300 rounded-sm mr-2">
-                            <input
-                              type="text"
-                              value={formData[index]?.email || ""}
-                              onChange={(e) =>
-                                handleInputChange(
-                                  index,
-                                  "email",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Email:"
-                              className="outline-none px-2 py-1 w-3/4"
-                            />
-                          </div>
-                          <div className="border border-gray-300 rounded-sm">
-                            <input
-                              type="text"
-                              value={formData[index]?.phone_number || ""}
-                              onChange={(e) =>
-                                handleInputChange(
-                                  index,
-                                  "phone_number",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Phone number:"
-                              className="outline-none px-2 py-1 w-3/4"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex items-center font-semibold text-sm rounded-sm p-1 m-1">
-                          <div className="border border-gray-300 rounded-sm mr-2">
-                            <input
-                              type="text"
-                              value={formData[index]?.full_name || ""}
-                              onChange={(e) =>
-                                handleInputChange(
-                                  index,
-                                  "full_name",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Fullname:"
-                              className="outline-none px-2 py-1 w-3/4"
-                            />
-                          </div>
-                          <div className="border border-gray-300 rounded-sm">
-                            <select
-                              value={formData[index]?.gender || ""}
-                              onChange={(e) =>
-                                handleInputChange(
-                                  index,
-                                  "gender",
-                                  e.target.value
-                                )
-                              }
-                              className="outline-none px-2 py-1 w-4/4"
-                            >
-                              <option value="">Gender</option>
-                              <option value="male">Male</option>
-                              <option value="female">Female</option>
-                            </select>
-                          </div>
-                          <div className="flex items-center font-semibold text-sm rounded-sm p-1 m-1">
-                            <input
-                              type="text"
-                              value={formData[index]?.ticketType || ticket.type} // Populate with ticket type name
-                              readOnly // Make it read-only since we're populating it
-                              className="outline-none px-2 py-1 w-3/4"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <br />
-                    </form>
-                  )}
-                </div>
-              ))}
-
-              <h1 className="font-bold text-lime-400">Payment Information</h1>
-              <div className="flex items-center font-semibold text-sm rounded-sm p-1 m-1">
-                <div className="border border-gray-300 rounded-sm mr-2">
-                  <select className="outline-none px-2 py-1 w-4/4">
-                    <option value="">Mpesa</option>
-                    <option value="male">Paypal</option>
-                    <option value="female">VISA</option>
-                  </select>
-                </div>
-                <div className="border border-gray-300 rounded-sm">
+                <div key={ticket.id}>
+                  <h3>Ticket for {ticket.type}</h3>
                   <input
                     type="text"
-                    value={formData[0]?.phone_number || ""}
+                    placeholder="Full Name"
+                    value={formData[index]?.full_name || ""}
                     onChange={(e) =>
-                      handleInputChange(0, "phone_number", e.target.value)
+                      handleInputChange(index, "full_name", e.target.value)
                     }
-                    placeholder="Phone number:"
-                    className="outline-none px-2 py-1 w-3/4"
+                    required
                   />
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={formData[index]?.email || ""}
+                    onChange={(e) =>
+                      handleInputChange(index, "email", e.target.value)
+                    }
+                    required
+                  />
+                  <input
+                    type="tel"
+                    placeholder="Phone Number"
+                    value={formData[index]?.phone_number || ""}
+                    onChange={(e) =>
+                      handleInputChange(index, "phone_number", e.target.value)
+                    }
+                    required
+                  />
+                  <select
+                    value={formData[index]?.gender || ""}
+                    onChange={(e) =>
+                      handleInputChange(index, "gender", e.target.value)
+                    }
+                    required
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleCompletePayment}
-                className="font-bold ml-2 bg-orange-500 text-white px-4 py-1 rounded my-2"
-              >
-                Complete Payment
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {paymentFailed && (
-        <div className="loader-overlay">
-          <div>
-            <div className="spinner"></div>
-            <p className="loader-text">
-              Payment verification failed. Please try again or contact support.
-            </p>
-          </div>
-        </div>
+              ))}
+              <PromoCodeContainer>
+                <PromoCodeInput
+                  type="text"
+                  placeholder="Promo Code"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value)}
+                />
+                <ApplyButton onClick={handleApplyPromoCode}>
+                  Apply
+                </ApplyButton>
+              </PromoCodeContainer>
+              <TotalContainer>
+                <p>Subtotal: ${subtotal}</p>
+                <CompletePaymentButton onClick={handleCompletePayment}>
+                  Complete Payment
+                </CompletePaymentButton>
+              </TotalContainer>
+            </FormContainer>
+          </CheckoutContainer>
+        </>
       )}
     </>
   );
 };
+
+const BackButton = styled.button`
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+`;
+
+const CheckoutContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+`;
+
+const FormContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 500px;
+`;
+
+const PromoCodeContainer = styled.div`
+  display: flex;
+  align-items: center;
+  margin-top: 20px;
+`;
+
+const PromoCodeInput = styled.input`
+  flex: 1;
+  padding: 10px;
+  font-size: 16px;
+`;
+
+const ApplyButton = styled.button`
+  padding: 10px 20px;
+  font-size: 16px;
+  margin-left: 10px;
+`;
+
+const TotalContainer = styled.div`
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`;
+
+const CompletePaymentButton = styled.button`
+  padding: 10px 20px;
+  font-size: 16px;
+  margin-top: 10px;
+`;
 
 export default CheckoutComp;
