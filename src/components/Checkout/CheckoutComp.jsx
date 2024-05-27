@@ -98,6 +98,7 @@ const CheckoutComp = ({ pendingTickets }) => {
     updatedFormData[index] = { ...updatedFormData[index], [field]: value };
     setFormData(updatedFormData);
   };
+  let event;
   const handleCompletePayment = async () => {
     try {
       const db = getFirestore();
@@ -111,6 +112,7 @@ const CheckoutComp = ({ pendingTickets }) => {
           if (!eventSnapshot.exists()) {
             throw new Error(`Event with ID ${ticket.eventId} not found`);
           }
+          event = eventData.eventDesc || "";
 
           const eventData = eventSnapshot.data();
           return {
@@ -133,7 +135,7 @@ const CheckoutComp = ({ pendingTickets }) => {
           const phone = formData[index]?.phone_number;
           const amount = subtotal;
           const ticketId = pendingTickets[index].ticketId;
-          const eventDesc = eventData.eventDesc || "";
+          const eventDesc = event;
 
           const response = await fetch(
             "https://mpesa-backend-api.vercel.app/api/stkpush",
