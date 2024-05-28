@@ -169,7 +169,7 @@ const CheckoutComp = ({ pendingTickets }) => {
         const maxTimeout = 20000; // 20 seconds timeout
 
         while (Date.now() - startTime < maxTimeout) {
-            const response = await fetch("http://localhost:3000/paymentStatus"); // Update the URL to your actual endpoint
+            const response = await fetch("https://mpesa-backend-api.vercel.app/paymentStatus"); // Update the URL to your actual endpoint
             if (!response.ok) {
                 console.error("Failed to fetch payment status");
                 throw new Error("Failed to fetch payment status");
