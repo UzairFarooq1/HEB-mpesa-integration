@@ -115,6 +115,7 @@ const CheckoutComp = ({ pendingTickets }) => {
 
                 const eventData = eventSnapshot.data();
                 const eventName = eventData.eventDesc || "";
+                console.log(eventName);
                 return {
                     email: formData[index]?.email || "",
                     phone_number: formData[index]?.phone_number || "",
@@ -156,7 +157,7 @@ const CheckoutComp = ({ pendingTickets }) => {
   
             if (!response.ok) {
               throw new Error(
-                "Failed to initiate payment for ticket: " + ticketId
+                "Failed to initiate payment for ticket"
               );
             }
           })
