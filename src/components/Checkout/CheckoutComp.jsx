@@ -127,6 +127,7 @@ const CheckoutComp = ({ pendingTickets }) => {
                 };
             })
         );
+        console.log(eventName);
 
         setIsPaymentProcessing(true);
         setPaymentFailed(false);
