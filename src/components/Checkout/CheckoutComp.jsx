@@ -115,68 +115,58 @@ const CheckoutComp = ({ pendingTickets }) => {
 
                 const eventData = eventSnapshot.data();
                 eventName = eventData.eventDesc || "";
-                console.log(eventName);
                 return {
                     email: formData[index]?.email || "",
                     phone_number: formData[index]?.phone_number || "",
                     gender: formData[index]?.gender || "",
                     full_name: formData[index]?.full_name || "",
                     type: ticket.type,
-                    amount: subtotal,
+                    amount: ticket.price,
                     eventDesc: eventName, // Add eventDesc to formDataArray
                 };
             })
         );
-        console.log(eventName);
+
+        // Calculate total amount for all tickets
+        const totalAmount = pendingTickets.reduce((total, ticket) => total + ticket.price, 0);
 
         setIsPaymentProcessing(true);
         setPaymentFailed(false);
 
-        await Promise.all(
-          formData.map(async (data, index) => {
-            const phone = formData[index]?.phone_number;
-            const amount = subtotal;
-            // const ticketId = pendingTickets[index].ticketId;
-            const event = eventName;
-  
-            const response = await fetch(
-              "https://mpesa-backend-api.vercel.app/api/stkpush",
-              {
+        // Send a single payment request
+        const phone = formData[0]?.phone_number;
+        const response = await fetch(
+            "https://mpesa-backend-api.vercel.app/api/stkpush",
+            {
                 method: "POST",
                 headers: {
-                  "Content-Type": "application/json",
+                    "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                  phone: phone,
-                  amount: amount,
-                  // ticketId: ticketId,
-                  event : event,
-  
+                    phone: phone,
+                    amount: totalAmount,
+                    event: eventName,
                 }),
-              }
-            );
-  
-            if (!response.ok) {
-              throw new Error(
-                "Failed to initiate payment for ticket"
-              );
             }
-          })
         );
+
+        if (!response.ok) {
+            throw new Error("Failed to initiate payment");
+        }
 
         const startTime = Date.now();
         let ticketPaid = false;
         const maxTimeout = 20000; // 20 seconds timeout
 
         while (Date.now() - startTime < maxTimeout) {
-            const response = await fetch("https://mpesa-backend-api.vercel.app/paymentStatus"); // Update the URL to your actual endpoint
-            if (!response.ok) {
+            const paymentStatusResponse = await fetch("https://mpesa-backend-api.vercel.app/paymentStatus");
+            if (!paymentStatusResponse.ok) {
                 console.error("Failed to fetch payment status");
                 throw new Error("Failed to fetch payment status");
             }
-            const data = await response.json();
+            const data = await paymentStatusResponse.json();
             if (data.message === 'Successful Payment') {
-              mpesaReceipt = data.mpesaReceipt;
+                mpesaReceipt = data.mpesaReceipt;
                 ticketPaid = true;
                 break; // Exit the loop if payment is successful
             } else {
@@ -200,9 +190,7 @@ const CheckoutComp = ({ pendingTickets }) => {
 
                     if (!ticketSnapshot.exists()) {
                         // If the ticket does not exist in the pendingTickets collection, show an alert and redirect to the event page
-                        alert(
-                            "The timeout for this ticket has expired. You will be redirected to the Event Details page."
-                        );
+                        alert("The timeout for this ticket has expired. You will be redirected to the Event Details page.");
                         navigate(`/event/${ticket.eventId}`);
                         return; // Skip processing this ticket
                     }
@@ -218,10 +206,7 @@ const CheckoutComp = ({ pendingTickets }) => {
                         validOn: ticket.validOn,
                     };
 
-                    await addDoc(
-                        collection(db, "events", ticket.eventId, "tickets"),
-                        ticketData
-                    );
+                    await addDoc(collection(db, "events", ticket.eventId, "tickets"), ticketData);
                     await deleteDoc(ticketRef);
                 })
             );
@@ -268,6 +253,7 @@ const CheckoutComp = ({ pendingTickets }) => {
         setIsPaymentProcessing(false);
     }
 };
+
 
 
   // const verifyPaymentStatus = async (transactionId) => {
