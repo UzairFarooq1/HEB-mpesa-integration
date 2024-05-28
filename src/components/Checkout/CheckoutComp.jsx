@@ -114,7 +114,7 @@ const CheckoutComp = ({ pendingTickets }) => {
                 }
 
                 const eventData = eventSnapshot.data();
-                const eventName = eventData.eventDesc || "";
+                eventName = eventData.eventDesc || "";
                 console.log(eventName);
                 return {
                     email: formData[index]?.email || "",
