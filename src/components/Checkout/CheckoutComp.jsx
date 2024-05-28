@@ -176,6 +176,7 @@ const CheckoutComp = ({ pendingTickets }) => {
             }
             const data = await response.json();
             if (data.message === 'Successful Payment') {
+              mpesaReceipt = data.mpesaReceipt;
                 ticketPaid = true;
                 break; // Exit the loop if payment is successful
             } else {
