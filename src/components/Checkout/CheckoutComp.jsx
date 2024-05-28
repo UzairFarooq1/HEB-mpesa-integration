@@ -131,30 +131,35 @@ const CheckoutComp = ({ pendingTickets }) => {
         setPaymentFailed(false);
 
         await Promise.all(
-            formData.map(async (data, index) => {
-                const phone = formData[index]?.phone_number;
-                const amount = subtotal;
-                const event = eventName;
-
-                const response = await fetch(
-                    "https://mpesa-backend-api.vercel.app/api/stkpush",
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            phone: phone,
-                            amount: amount,
-                            event: event,
-                        }),
-                    }
-                );
-
-                if (!response.ok) {
-                    throw new Error("Failed to initiate payment for ticket.");
-                }
-            })
+          formData.map(async (data, index) => {
+            const phone = formData[index]?.phone_number;
+            const amount = subtotal;
+            // const ticketId = pendingTickets[index].ticketId;
+            const event = eventName;
+  
+            const response = await fetch(
+              "https://mpesa-backend-api.vercel.app/api/stkpush",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  phone: phone,
+                  amount: amount,
+                  // ticketId: ticketId,
+                  event : event,
+  
+                }),
+              }
+            );
+  
+            if (!response.ok) {
+              throw new Error(
+                "Failed to initiate payment for ticket: " + ticketId
+              );
+            }
+          })
         );
 
         const startTime = Date.now();
