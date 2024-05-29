@@ -3,7 +3,6 @@ import styled from "styled-components";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getDocs, collection, query, where } from "firebase/firestore";
 import { db } from "../main.jsx";
-import { v4 as uuidv4 } from "uuid";
 import { useNavigate, useParams } from "react-router-dom";
 
 // Styled components
@@ -147,14 +146,20 @@ const createTableData = async (userId) => {
       const ticketsArray = Object.values(eventData.ticketTypes || {});
 
       // Check if the event already exists in the data array
-      const existingEventIndex = data.findIndex(existing => existing.id === doc.id);
+      const existingEventIndex = data.findIndex(
+        (existing) => existing.id === doc.id
+      );
 
       if (existingEventIndex === -1) {
         // If the event doesn't exist, create a new entry
         let datesArray = [];
         if (ticketsArray.length > 0 && ticketsArray[0].dates instanceof Array) {
           datesArray = ticketsArray[0].dates.map((date) => date.toDate());
-        } else if (ticketsArray.length > 0 && ticketsArray[0].dates instanceof Object && ticketsArray[0].dates.toDate) {
+        } else if (
+          ticketsArray.length > 0 &&
+          ticketsArray[0].dates instanceof Object &&
+          ticketsArray[0].dates.toDate
+        ) {
           datesArray = [ticketsArray[0].dates.toDate()];
         }
 
@@ -238,6 +243,58 @@ const EventsTabsProfile = () => {
     console.log(`Edit clicked for event with ID ${eventId}`);
   };
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const filterEvents = (filterFunction) => {
+    return tableData.filter((event) =>
+      event.dates.some((date) => filterFunction(date))
+    );
+  };
+
+  const currentEvents = filterEvents(
+    (date) => date.toDateString() === today.toDateString()
+  );
+  const previousEvents = filterEvents((date) => date < today);
+  const upcomingEvents = filterEvents((date) => date > today);
+
+  const renderTableRows = (events) => {
+    return events.map((row, index) => (
+      <tr key={index}>
+        <TableCell>{row.name}</TableCell>
+        <TableCell>{row.description}</TableCell>
+        <TableCell>
+          {row.tickets.map((ticket, ticketIndex) => (
+            <div key={ticketIndex}>
+              <p>{`Type : ${ticket.type}`}</p>
+              <p>{`Price: ${ticket.price}`}</p>
+              <p>{`Tickets: ${ticket.numberOfTickets}`}</p>
+              {ticket.dates && Array.isArray(ticket.dates) ? (
+                <div>
+                  {ticket.dates.map((date, index) => (
+                    <span key={index}>
+                      {new Date(date.seconds * 1000).toLocaleString()}
+                      {index !== ticket.dates.length - 1 && <br />}{" "}
+                      {/* Add <br> if it's not the last date */}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                "No dates available"
+              )}
+              {ticketIndex !== row.tickets.length - 1 && <br />}{" "}
+              {/* Add <br> between ticket types */}
+            </div>
+          ))}
+        </TableCell>
+        <TableCell>{row.location}</TableCell>
+        <TableCell>
+          <EditButton onClick={() => handleEditClick(row.id)}>Edit</EditButton>
+        </TableCell>
+      </tr>
+    ));
+  };
+
   return (
     <TabsContainer>
       <TabMenu>
@@ -281,75 +338,25 @@ const EventsTabsProfile = () => {
                     <TableHeader>Edit</TableHeader>
                   </tr>
                 </thead>
-                <tbody>
-                  {tableData.map((row, index) => (
-                    <tr key={index}>
-                      <TableCell>{row.name}</TableCell>
-                      <TableCell>{row.description}</TableCell>
-                      {/* <TableCell>
-        {row.dates && row.dates.length > 0 ? (
-          <ul>
-            {row.dates.map((date, dateIndex) => (
-              <li key={dateIndex}>{date.toLocaleString()}</li>
-            ))}
-          </ul>
-        ) : (
-          'No dates available'
-        )}
-      </TableCell> */}
-<TableCell>
-  {row.tickets.map((ticket, ticketIndex) => (
-    <div key={ticketIndex}>
-      <p>{`Type : ${ticket.type}`}</p>
-      <p>{`Price: ${ticket.price}`}</p>
-      <p>{`Tickets: ${ticket.numberOfTickets}`}</p>
-
-      {ticket.dates && Array.isArray(ticket.dates) ? (
-        <div>
-          {ticket.dates.map((date, index) => (
-            <span key={index}>
-              {new Date(
-                date.seconds * 1000
-              ).toLocaleString()}
-              {index !== ticket.dates.length - 1 && (
-                <br />
-              )}{" "}
-              {/* Add <br> if it's not the last date */}
-            </span>
-          ))}
-        </div>
-      ) : (
-        "No dates available"
-      )}
-      {ticketIndex !== row.tickets.length - 1 && <br />} {/* Add <br> between ticket types */}
-    </div>
-  ))}
-</TableCell>
-
-                      <TableCell>{row.location}</TableCell>
-                      <TableCell>
-                        <EditButton onClick={() => handleEditClick(row.id)}>
-                          Edit
-                        </EditButton>
-                      </TableCell>
-                    </tr>
-                  ))}
-                </tbody>
+                <tbody>{renderTableRows(currentEvents)}</tbody>
               </Table>
             )}
-            {/* Add similar blocks for Tab 2 and Tab 3 content */}
             {activeTab === 2 && (
               <Table>
                 <thead>
                   <tr>
                     <TableHeader>Name</TableHeader>
-                    <TableHeader>Date</TableHeader>
-                    <TableHeader>Tickets</TableHeader>
-                    <TableHeader>Prices</TableHeader>
-                    <TableHeader>Venue</TableHeader>
+                    <TableHeader style={{ width: "500px" }}>
+                      Description
+                    </TableHeader>
+                    <TableHeader style={{ width: "300px" }}>
+                      Tickets
+                    </TableHeader>
+                    <TableHeader>Location</TableHeader>
+                    <TableHeader>Edit</TableHeader>
                   </tr>
                 </thead>
-                <tbody></tbody>
+                <tbody>{renderTableRows(previousEvents)}</tbody>
               </Table>
             )}
             {activeTab === 3 && (
@@ -357,13 +364,17 @@ const EventsTabsProfile = () => {
                 <thead>
                   <tr>
                     <TableHeader>Name</TableHeader>
-                    <TableHeader>Date</TableHeader>
-                    <TableHeader>Tickets</TableHeader>
-                    <TableHeader>Prices</TableHeader>
-                    <TableHeader>Venue</TableHeader>
+                    <TableHeader style={{ width: "500px" }}>
+                      Description
+                    </TableHeader>
+                    <TableHeader style={{ width: "300px" }}>
+                      Tickets
+                    </TableHeader>
+                    <TableHeader>Location</TableHeader>
+                    <TableHeader>Edit</TableHeader>
                   </tr>
                 </thead>
-                <tbody></tbody>
+                <tbody>{renderTableRows(upcomingEvents)}</tbody>
               </Table>
             )}
           </Panel>
@@ -372,4 +383,5 @@ const EventsTabsProfile = () => {
     </TabsContainer>
   );
 };
+
 export default EventsTabsProfile;
