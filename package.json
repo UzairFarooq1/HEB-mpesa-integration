@@ -31,6 +31,7 @@
     "firebase-functions": "^4.9.0",
     "fs": "^0.0.1-security",
     "fund": "^1.0.0",
+    "html5-qrcode": "^2.3.8",
     "leaflet-control-geocoder": "^2.4.0",
     "leaflet-geosearch": "^3.11.1",
     "lucide-react": "^0.358.0",
