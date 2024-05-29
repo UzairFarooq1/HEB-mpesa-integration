@@ -200,29 +200,32 @@ const CheckoutComp = ({ pendingTickets }) => {
                       db,
                       "events",
                       ticket.eventId,
-                      "pendingTickets",
+                      "tickets",
                       ticket.ticketId
                   );
                   const ticketSnapshot1 = await getDoc(ticketRef1);
-
-
+                  if (!ticketSnapshot.exists()) {
                     // Proceed with registering the ticket
                     const ticketData = {
-                        ...formData[index],
-                        price: ticket.price,
-                        ticketId: ticket.ticketId,
-                        mpesaReceiptNumber: mpesaReceipt,
-                        type: ticket.type,
-                        eventId: ticket.eventId,
-                        used: false,
-                        validOn: ticket.validOn,
-                    };
+                      ...formData[index],
+                      price: ticket.price,
+                      ticketId: ticket.ticketId,
+                      mpesaReceiptNumber: mpesaReceipt,
+                      type: ticket.type,
+                      eventId: ticket.eventId,
+                      used: false,
+                      validOn: ticket.validOn,
+                  };
 
-                    await setDoc(ticketRef1, ticketData);
+                  await setDoc(ticketRef1, ticketData);
 
 
-                    // await addDoc(collection(db, "events", ticket.eventId, "tickets"), ticketData);
-                    await deleteDoc(ticketRef);
+                  // await addDoc(collection(db, "events", ticket.eventId, "tickets"), ticketData);
+                  await deleteDoc(ticketRef);
+                }
+
+
+
                 })
             );
 
