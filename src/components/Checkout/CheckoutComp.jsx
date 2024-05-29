@@ -4,6 +4,7 @@ import {
   getFirestore,
   doc,
   getDoc,
+  setDoc,
   getDocs,
   addDoc,
   deleteDoc,
@@ -207,7 +208,7 @@ const CheckoutComp = ({ pendingTickets }) => {
                         validOn: ticket.validOn,
                     };
 
-                    await addDoc(collection(db, "events", ticket.eventId, "tickets"), ticketData);
+                    await setDoc(ticketRef, ticketData);
                     await deleteDoc(ticketRef);
                 })
             );
