@@ -11,7 +11,7 @@ const HostProfile = () => {
   const onScanSuccess = async (decodedText, decodedResult) => {
     // Assuming the QR code contains JSON data with the ticketId
     const ticketData = JSON.parse(decodedText);
-    const response = await fetch('https://mpesa-backend-api.vercel.app/verify-ticket', {
+    const response = await fetch('https://mpesa-backend-api.vercel.app/verifyticket', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
