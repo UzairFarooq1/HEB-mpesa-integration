@@ -196,13 +196,13 @@ const CheckoutComp = ({ pendingTickets }) => {
                         return; // Skip processing this ticket
                     }
 
-                    const ticketRef1 = doc(
-                      db,
-                      "events",
-                      ticket.eventId,
-                      "tickets",
-                      ticket.ticketId
-                  );
+                  //   const ticketRef1 = doc(
+                  //     db,
+                  //     "events",
+                  //     ticket.eventId,
+                  //     "tickets",
+                  //     ticket.ticketId
+                  // );
 
                     // Proceed with registering the ticket
                     const ticketData = {
@@ -216,10 +216,10 @@ const CheckoutComp = ({ pendingTickets }) => {
                         validOn: ticket.validOn,
                     };
 
-                    await setDoc(ticketRef1, ticketData);
+                    // await setDoc(ticketRef1, ticketData);
 
 
-                    // await addDoc(collection(db, "events", ticket.eventId, "tickets"), ticketData);
+                    await addDoc(collection(db, "events", ticket.eventId, "tickets", ticket.ticketId), ticketData);
                     await deleteDoc(ticketRef);
                 })
             );
