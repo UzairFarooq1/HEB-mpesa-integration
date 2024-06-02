@@ -218,8 +218,9 @@ const CheckoutComp = ({ pendingTickets }) => {
 
                     // await setDoc(ticketRef1, ticketData);
 
-
-                    await addDoc(collection(db, "events", ticket.eventId, "tickets", ticket.ticketId), ticketData);
+                    const ticketRef1 = doc(db, "events", ticket.eventId, "tickets", ticket.ticketId); // Set the document ID here
+                    await setDoc(ticketRef1, ticketData);
+                    // await addDoc(collection(db, "events", ticket.eventId, "tickets"), ticketData);
                     await deleteDoc(ticketRef);
                 })
             );
