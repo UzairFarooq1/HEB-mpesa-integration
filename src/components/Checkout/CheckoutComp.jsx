@@ -126,7 +126,6 @@ const CheckoutComp = ({ pendingTickets }) => {
                     type: ticket.type,
                     amount: ticket.price,
                     eventDesc: eventName,
-                    host: hostId,
                 };
             })
         );
@@ -215,7 +214,7 @@ const CheckoutComp = ({ pendingTickets }) => {
                         mpesaReceiptNumber: mpesaReceipt,
                         type: ticket.type,
                         eventId: ticket.eventId,
-                        hostId: hostId,
+                        host: hostId,
                         used: false,
                         validOn: ticket.validOn,
                     };
