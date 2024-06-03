@@ -5,6 +5,19 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import styled from 'styled-components';
 import Header from './Header';
 
+
+const Button = styled.button`
+  padding: 8px 16px;
+  margin: 0 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+
+  &:hover {
+    transform: scale(1.1);
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+  }
+`;
 const HostProfile = () => {
   const [message, setMessage] = useState('');
   const [ticketId, setTicketId] = useState('');
@@ -68,7 +81,7 @@ const HostProfile = () => {
         <h1>QR Code Scanner</h1>
         <div id="reader" style={{ width: '500px' }}></div>
         {message && <p>{message}</p>}
-        <button onClick={verifyTicket}>Verify</button>
+        <Button onClick={verifyTicket}>Verify</Button>
       </div>
 
       <ProfileCard />
