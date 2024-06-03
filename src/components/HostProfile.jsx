@@ -72,7 +72,7 @@ const HostProfile = () => {
         <h1>QR Code Scanner</h1>
         <div id="reader" style={{ width: '500px' }}></div>
         {message && <p>{message}</p>}
-        <button onClick={verifyTicket}>Verify</button>
+        <Button onClick={verifyTicket}>Verify</Button>
       </div>
 
       <ProfileCard />
