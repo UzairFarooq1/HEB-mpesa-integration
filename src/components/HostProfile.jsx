@@ -7,13 +7,28 @@ import Header from './Header';
 
 const HostProfile = () => {
   const [message, setMessage] = useState('');
+  const [ticketId, setTicketId] = useState('');
 
   const onScanSuccess = async (decodedText, decodedResult) => {
     try {
       // Assuming the QR code contains JSON data with the ticketId
       const ticketData = JSON.parse(decodedText);
-      const response = await fetch(`https://mpesa-backend-api.vercel.app/verify-ticket/${ticketData.ticketId}`);
-  
+      setTicketId(ticketData.ticketId);
+    } catch (error) {
+      console.error('Error parsing QR code:', error);
+      setMessage('Failed to parse QR code');
+    }
+  };
+
+  const verifyTicket = async () => {
+    try {
+      if (!ticketId) {
+        setMessage('No ticket ID available for verification');
+        return;
+      }
+
+      const response = await fetch(`https://mpesa-backend-api.vercel.app/verify-ticket/${ticketId}`);
+
       if (response.ok) {
         const result = await response.json();
         if (result.status === 'verified') {
@@ -32,7 +47,6 @@ const HostProfile = () => {
       setMessage('Verification failed due to an error');
     }
   };
-  
 
   useEffect(() => {
     const scanner = new Html5QrcodeScanner('reader', {
@@ -54,6 +68,7 @@ const HostProfile = () => {
         <h1>QR Code Scanner</h1>
         <div id="reader" style={{ width: '500px' }}></div>
         {message && <p>{message}</p>}
+        <button onClick={verifyTicket}>Verify</button>
       </div>
 
       <ProfileCard />
