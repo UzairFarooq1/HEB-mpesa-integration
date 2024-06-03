@@ -4,10 +4,15 @@ import EventsTabsProfile from './EventsTabsProfile';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import styled from 'styled-components';
 import Header from './Header';
-import { Button } from "@/components/ui/button"
-0
 
-
+const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin-top: 20px;
+`;
 
 const HostProfile = () => {
   const [message, setMessage] = useState('');
@@ -68,12 +73,12 @@ const HostProfile = () => {
   return (
     <>
       <Header isHostProfilePage />
-      <div>
+      <Container>
         <h1>QR Code Scanner</h1>
-        <div id="reader" style={{ width: '500px' }}></div>
+        <div id="reader" style={{ width: '500px', marginBottom: '20px' }}></div>
         {message && <p>{message}</p>}
-        <Button onClick={verifyTicket}>Verify</Button>
-      </div>
+        <button onClick={verifyTicket}>Verify</button>
+      </Container>
 
       <ProfileCard />
       <EventsTabsProfile />
