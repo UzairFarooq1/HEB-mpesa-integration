@@ -26,7 +26,9 @@ const CheckoutComp = ({ pendingTickets }) => {
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
   const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false);
   const [paymentFailed, setPaymentFailed] = useState(false);
-  const [showConfirmPayment, setShowConfirmPayment] = useState(false);
+  const [formDataArray, setFormDataArray] = useState([]);
+
+  // const [mpesaReceipt, setmpesaReceipt] = useState(false);
 
   const navigate = useNavigate();
 
@@ -130,9 +132,13 @@ const CheckoutComp = ({ pendingTickets }) => {
           };
         })
       );
+      setFormDataArray(formDataArray);
 
       // Calculate total amount for all tickets
-      const totalAmount = pendingTickets.reduce((total, ticket) => total + ticket.price, 0);
+      const totalAmount = pendingTickets.reduce(
+        (total, ticket) => total + ticket.price,
+        0
+      );
 
       setIsPaymentProcessing(true);
       setPaymentFailed(false);
@@ -157,35 +163,34 @@ const CheckoutComp = ({ pendingTickets }) => {
       if (!response.ok) {
         throw new Error("Failed to initiate payment");
       }
-
-      // Show the "Confirm Payment" button
-      setShowConfirmPayment(true);
     } catch (error) {
       console.error("Error completing payment:", error);
       setPaymentFailed(true);
       setTimeout(() => {
         navigate(`/event/${pendingTickets[0].eventId}`);
       }, 3000);
-    } finally {
-      setIsPaymentProcessing(false);
     }
   };
 
   const handleConfirmPayment = async () => {
     try {
       setIsPaymentProcessing(true);
+      setPaymentFailed(false);
+
       const startTime = Date.now();
       let ticketPaid = false;
       const maxTimeout = 20000; // 20 seconds timeout
 
       while (Date.now() - startTime < maxTimeout) {
-        const paymentStatusResponse = await fetch("https://mpesa-backend-api.vercel.app/paymentStatus");
+        const paymentStatusResponse = await fetch(
+          "https://mpesa-backend-api.vercel.app/paymentStatus"
+        );
         if (!paymentStatusResponse.ok) {
           console.error("Failed to fetch payment status");
           throw new Error("Failed to fetch payment status");
         }
         const data = await paymentStatusResponse.json();
-        if (data.message === 'Successful Payment') {
+        if (data.message === "Successful Payment") {
           mpesaReceipt = data.mpesaReceipt;
           ticketPaid = true;
           break; // Exit the loop if payment is successful
@@ -197,6 +202,7 @@ const CheckoutComp = ({ pendingTickets }) => {
 
       if (ticketPaid) {
         const db = getFirestore();
+
         await Promise.all(
           pendingTickets.map(async (ticket, index) => {
             // Check if the ticket is still pending
@@ -211,7 +217,9 @@ const CheckoutComp = ({ pendingTickets }) => {
 
             if (!ticketSnapshot.exists()) {
               // If the ticket does not exist in the pendingTickets collection, show an alert and redirect to the event page
-              alert("The timeout for this ticket has expired. You will be redirected to the Event Details page.");
+              alert(
+                "The timeout for this ticket has expired. You will be redirected to the Event Details page."
+              );
               navigate(`/event/${ticket.eventId}`);
               return; // Skip processing this ticket
             }
@@ -229,12 +237,20 @@ const CheckoutComp = ({ pendingTickets }) => {
               validOn: ticket.validOn,
             };
 
-            const ticketRef1 = doc(db, "events", ticket.eventId, "tickets", ticket.ticketId); // Set the document ID here
+            const ticketRef1 = doc(
+              db,
+              "events",
+              ticket.eventId,
+              "tickets",
+              ticket.ticketId
+            ); // Set the document ID here
             await setDoc(ticketRef1, ticketData);
             await deleteDoc(ticketRef);
           })
         );
 
+        // Construct formDataArray
+        // Construct formDataArray
         // Update formDataArray with mpesaReceipt and send email
         await Promise.all(
           pendingTickets.map(async (ticket, index) => {
@@ -278,302 +294,234 @@ const CheckoutComp = ({ pendingTickets }) => {
     }
   };
 
-  const handleGoBack = () => {
-    const eventId = pendingTickets[0]?.eventId; // Ensure pendingTickets array is not empty
-    if (eventId) {
-      navigate(`/event/${eventId}`);
-    }
+  // const verifyPaymentStatus = async (transactionId) => {
+  //   // Implement this function to check payment status with M-Pesa API
+  //   // Return 'completed' if payment is successful, otherwise return 'pending' or 'failed'
+  // };
+
+  const handleApplyPromoCode = () => {
+    console.log("Applying promo code:", promoCode);
   };
 
+  const subtotal = pendingTickets.reduce((acc, ticket) => {
+    return acc + parseInt(ticket.price); // Assuming the price is in string format and needs to be parsed to an integer
+  }, 0);
+
   return (
-    <Wrapper>
-      <BackButton onClick={handleGoBack}>
-        <IoIosArrowRoundBack />
-        <span>Go back</span>
-      </BackButton>
-      {expiredTickets.length > 0 ? (
-        <ExpiredTicketsContainer>
-          <h2>Expired Tickets</h2>
-          {expiredTickets.map((ticket) => (
-            <ExpiredTicket key={ticket.id}>
-              <p>Ticket ID: {ticket.id}</p>
-              <p>Event: {ticket.eventName}</p>
-              <p>Type: {ticket.type}</p>
-            </ExpiredTicket>
-          ))}
-        </ExpiredTicketsContainer>
-      ) : (
-        <FormContainer>
-          {pendingTickets.map((ticket, index) => (
-            <div key={index}>
-              <h2>Ticket {index + 1}</h2>
-              <FormField>
-                <Label>Email:</Label>
-                <Input
-                  type="email"
-                  value={formData[index]?.email || ""}
-                  onChange={(e) =>
-                    handleInputChange(index, "email", e.target.value)
-                  }
-                />
-              </FormField>
-              <FormField>
-                <Label>Phone Number:</Label>
-                <Input
-                  type="tel"
-                  value={formData[index]?.phone_number || ""}
-                  onChange={(e) =>
-                    handleInputChange(index, "phone_number", e.target.value)
-                  }
-                />
-              </FormField>
-              <FormField>
-                <Label>Gender:</Label>
-                <Select
-                  value={formData[index]?.gender || ""}
-                  onChange={(e) =>
-                    handleInputChange(index, "gender", e.target.value)
-                  }
-                >
-                  <option value="">Select</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="other">Other</option>
-                </Select>
-              </FormField>
-              <FormField>
-                <Label>Full Name:</Label>
-                <Input
-                  type="text"
-                  value={formData[index]?.full_name || ""}
-                  onChange={(e) =>
-                    handleInputChange(index, "full_name", e.target.value)
-                  }
-                />
-              </FormField>
+    <>
+      {isPaymentProcessing && (
+        <div className="loader-overlay">
+          <div>
+            <div className="spinner"></div>
+            <p className="loader-text">
+              Processing payment... Please enter your mpesa pin in the prompt.
+            </p>
+            <br />
+            <div style={{ textAlign: "center" }}>
+              <button
+                type="button"
+                onClick={handleConfirmPayment}
+                className="font-bold bg-orange-500 text-white px-4 py-2 rounded"
+              >
+                Confirm Payment
+              </button>
             </div>
-          ))}
-          <PromoCodeContainer>
-            <Label>Promo Code:</Label>
-            <PromoCodeInput
-              type="text"
-              value={promoCode}
-              onChange={(e) => setPromoCode(e.target.value)}
-            />
-            <ApplyButton onClick={() => { /* Handle promo code application */ }}>
-              Apply
-            </ApplyButton>
-          </PromoCodeContainer>
-          <SubmitButton onClick={handleCompletePayment}>
-            Complete Payment
-          </SubmitButton>
-          {isPaymentProcessing && (
-            <ProcessingContainer>
-              <ProcessingMessage>Processing payment...</ProcessingMessage>
-              <Loader />
-            </ProcessingContainer>
-          )}
-          {showConfirmPayment && (
-            <ConfirmPaymentButton onClick={handleConfirmPayment}>
-              Confirm Payment
-            </ConfirmPaymentButton>
-          )}
-          {paymentFailed && (
-            <ErrorContainer>
-              <ErrorMessage>
-                Payment failed. You will be redirected back to the event page.
-              </ErrorMessage>
-            </ErrorContainer>
-          )}
-          {isPaymentConfirmed && (
-            <SuccessContainer>
-              <SuccessMessage>Payment Successful!</SuccessMessage>
-            </SuccessContainer>
-          )}
-        </FormContainer>
+          </div>
+        </div>
       )}
-    </Wrapper>
+
+      {isPaymentConfirmed && (
+        <div className="loader-overlay">
+          <div>
+            <div className="spinner"></div>
+            <p className="loader-test">Payment confirmed! Redirecting...</p>
+          </div>
+        </div>
+      )}
+
+      {!isPaymentProcessing && !isPaymentConfirmed && (
+        <div className="flex flex-row my-20">
+          <div className="w-3/12 h-52 border rounded-xl ml-24 p-6 bg-white shadow">
+            <div className="bg-white h-full">
+              <h2 className="font-bold text-lime-400">Order Summary</h2>
+              <p className="flex items-center font-light text-sm">
+                <IoIosArrowRoundBack />
+                Back
+              </p>
+              <h4 className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
+                Sub-Total{" "}
+                <span className="font-bold ml-8 text-lime-400">
+                  Ksh. {subtotal.toFixed(2)}
+                </span>
+              </h4>
+              <form className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
+                <input
+                  type="text"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value)}
+                  placeholder="Promo code:"
+                  className="outline-none px-2 py-1 w-3/4"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyPromoCode}
+                  className="font-bold ml-2 bg-orange-500 text-white px-4 py-1 rounded"
+                >
+                  Apply
+                </button>
+              </form>
+              <h4 className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
+                Total{" "}
+                <span className="font-bold ml-8 text-lime-400">
+                  Ksh. {subtotal.toFixed(2)}
+                </span>
+              </h4>
+            </div>
+          </div>
+          <div className="w-3/6 h-auto border rounded-xl ml-24 p-6 bg-white shadow">
+            <div className="bg-white h-full">
+              <h1 className="font-bold text-lime-400">Contact Information</h1>
+              <br />
+              {pendingTickets.map((ticket, index) => (
+                <div key={index}>
+                  <h2 className="font-semibold">Attendee {index + 1}</h2>
+                  {expiredTickets.some(
+                    (expiredTicket) => expiredTicket.id === ticket.id
+                  ) ? (
+                    <p>
+                      The ticket associated with this attendee has expired.
+                      Please choose the number of tickets again.
+                    </p>
+                  ) : (
+                    <form>
+                      <div className="flex flex-col">
+                        <div className="flex items-center font-semibold text-sm rounded-sm p-1 m-1">
+                          <div className="border border-gray-300 rounded-sm mr-2">
+                            <input
+                              type="text"
+                              value={formData[index]?.email || ""}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  index,
+                                  "email",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Email:"
+                              className="outline-none px-2 py-1 w-3/4"
+                            />
+                          </div>
+                          <div className="border border-gray-300 rounded-sm">
+                            <input
+                              type="text"
+                              value={formData[index]?.phone_number || ""}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  index,
+                                  "phone_number",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Phone number:"
+                              className="outline-none px-2 py-1 w-3/4"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center font-semibold text-sm rounded-sm p-1 m-1">
+                          <div className="border border-gray-300 rounded-sm mr-2">
+                            <input
+                              type="text"
+                              value={formData[index]?.full_name || ""}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  index,
+                                  "full_name",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Fullname:"
+                              className="outline-none px-2 py-1 w-3/4"
+                            />
+                          </div>
+                          <div className="border border-gray-300 rounded-sm">
+                            <select
+                              value={formData[index]?.gender || ""}
+                              onChange={(e) =>
+                                handleInputChange(
+                                  index,
+                                  "gender",
+                                  e.target.value
+                                )
+                              }
+                              className="outline-none px-2 py-1 w-4/4"
+                            >
+                              <option value="">Gender</option>
+                              <option value="male">Male</option>
+                              <option value="female">Female</option>
+                            </select>
+                          </div>
+                          <div className="flex items-center font-semibold text-sm rounded-sm p-1 m-1">
+                            <input
+                              type="text"
+                              value={formData[index]?.ticketType || ticket.type} // Populate with ticket type name
+                              readOnly // Make it read-only since we're populating it
+                              className="outline-none px-2 py-1 w-3/4"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <br />
+                    </form>
+                  )}
+                </div>
+              ))}
+
+              <h1 className="font-bold text-lime-400">Payment Information</h1>
+              <div className="flex items-center font-semibold text-sm rounded-sm p-1 m-1">
+                <div className="border border-gray-300 rounded-sm mr-2">
+                  <select className="outline-none px-2 py-1 w-4/4">
+                    <option value="">Mpesa</option>
+                    <option value="male">Paypal</option>
+                    <option value="female">VISA</option>
+                  </select>
+                </div>
+                <div className="border border-gray-300 rounded-sm">
+                  <input
+                    type="text"
+                    value={formData[0]?.phone_number || ""}
+                    onChange={(e) =>
+                      handleInputChange(0, "phone_number", e.target.value)
+                    }
+                    placeholder="Phone number:"
+                    className="outline-none px-2 py-1 w-3/4"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCompletePayment}
+                className="font-bold ml-2 bg-orange-500 text-white px-4 py-1 rounded my-2"
+              >
+                Complete Payment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {paymentFailed && (
+        <div className="loader-overlay">
+          <div>
+            <div className="spinner"></div>
+            <p className="loader-text">
+              Payment verification failed. Please try again or contact support.
+            </p>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
-
-const Wrapper = styled.div`
-  padding: 20px;
-`;
-
-const BackButton = styled.button`
-  display: flex;
-  align-items: center;
-  margin-bottom: 20px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: bold;
-
-  &:hover {
-    background-color: #0056b3;
-  }
-
-  span {
-    margin-left: 5px;
-  }
-`;
-
-const ExpiredTicketsContainer = styled.div`
-  padding: 20px;
-  background-color: #f8d7da;
-  border: 1px solid #f5c6cb;
-  border-radius: 5px;
-`;
-
-const ExpiredTicket = styled.div`
-  margin-bottom: 10px;
-`;
-
-const FormContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-`;
-
-const FormField = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-`;
-
-const Label = styled.label`
-  font-weight: bold;
-`;
-
-const Input = styled.input`
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-`;
-
-const Select = styled.select`
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-`;
-
-const PromoCodeContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-`;
-
-const PromoCodeInput = styled.input`
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  flex: 1;
-`;
-
-const ApplyButton = styled.button`
-  padding: 10px 20px;
-  background-color: #28a745;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-
-  &:hover {
-    background-color: #218838;
-  }
-`;
-
-const SubmitButton = styled.button`
-  padding: 10px 20px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-
-  &:hover {
-    background-color: #0056b3;
-  }
-`;
-
-const ProcessingContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-top: 20px;
-`;
-
-const ProcessingMessage = styled.p`
-  font-size: 16px;
-  font-weight: bold;
-  color: #007bff;
-`;
-
-const Loader = styled.div`
-  border: 4px solid #f3f3f3;
-  border-radius: 50%;
-  border-top: 4px solid #007bff;
-  width: 40px;
-  height: 40px;
-  animation: spin 2s linear infinite;
-
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
-  }
-`;
-
-const ConfirmPaymentButton = styled.button`
-  padding: 10px 20px;
-  background-color: #ffc107;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-  margin-top: 20px;
-
-  &:hover {
-    background-color: #e0a800;
-  }
-`;
-
-const ErrorContainer = styled.div`
-  padding: 20px;
-  background-color: #f8d7da;
-  border: 1px solid #f5c6cb;
-  border-radius: 5px;
-  margin-top: 20px;
-`;
-
-const ErrorMessage = styled.p`
-  font-size: 16px;
-  font-weight: bold;
-  color: #721c24;
-`;
-
-const SuccessContainer = styled.div`
-  padding: 20px;
-  background-color: #d4edda;
-  border: 1px solid #c3e6cb;
-  border-radius: 5px;
-  margin-top: 20px;
-`;
-
-const SuccessMessage = styled.p`
-  font-size: 16px;
-  font-weight: bold;
-  color: #155724;
-`;
 
 export default CheckoutComp;
