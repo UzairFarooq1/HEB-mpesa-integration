@@ -215,6 +215,7 @@ const CheckoutComp = ({ pendingTickets }) => {
                         mpesaReceiptNumber: mpesaReceipt,
                         type: ticket.type,
                         eventId: ticket.eventId,
+                        hostId: hostId,
                         used: false,
                         validOn: ticket.validOn,
                     };
