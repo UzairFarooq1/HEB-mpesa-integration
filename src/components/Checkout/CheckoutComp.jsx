@@ -17,6 +17,7 @@ import "./checkoutstyle.css"; // Import the CSS file
 
 let mpesaReceipt;
 let eventName;
+let hostId;
 
 const CheckoutComp = ({ pendingTickets }) => {
   const [promoCode, setPromoCode] = useState("");
@@ -115,6 +116,7 @@ const CheckoutComp = ({ pendingTickets }) => {
                 }
 
                 const eventData = eventSnapshot.data();
+                hostId = eventData.userId || "";
                 eventName = eventData.eventDesc || "";
                 return {
                     email: formData[index]?.email || "",
@@ -123,7 +125,8 @@ const CheckoutComp = ({ pendingTickets }) => {
                     full_name: formData[index]?.full_name || "",
                     type: ticket.type,
                     amount: ticket.price,
-                    eventDesc: eventName, // Add eventDesc to formDataArray
+                    eventDesc: eventName,
+                    host: hostId,
                 };
             })
         );
