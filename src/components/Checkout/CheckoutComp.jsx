@@ -26,6 +26,25 @@ const CheckoutComp = ({ pendingTickets }) => {
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
   const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false);
   const [paymentFailed, setPaymentFailed] = useState(false);
+  const [transactionId, setTransactionId] = useState(null); // New state for transaction ID
+
+  const CheckoutContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+`;
+
+const BackButton = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  position: absolute;
+  top: 20px;
+  left: 20px;
+`;
+
   // const [mpesaReceipt, setmpesaReceipt] = useState(false);
 
   const navigate = useNavigate();
@@ -101,6 +120,7 @@ const CheckoutComp = ({ pendingTickets }) => {
     updatedFormData[index] = { ...updatedFormData[index], [field]: value };
     setFormData(updatedFormData);
   };
+
   const handleCompletePayment = async () => {
     try {
         const db = getFirestore();
@@ -157,6 +177,9 @@ const CheckoutComp = ({ pendingTickets }) => {
             throw new Error("Failed to initiate payment");
         }
 
+        const data = await response.json();
+        setTransactionId(data.transactionId); // Store transaction ID
+
         const startTime = Date.now();
         let ticketPaid = false;
         const maxTimeout = 20000; // 20 seconds timeout
@@ -198,14 +221,6 @@ const CheckoutComp = ({ pendingTickets }) => {
                         return; // Skip processing this ticket
                     }
 
-                  //   const ticketRef1 = doc(
-                  //     db,
-                  //     "events",
-                  //     ticket.eventId,
-                  //     "tickets",
-                  //     ticket.ticketId
-                  // );
-
                     // Proceed with registering the ticket
                     const ticketData = {
                         ...formData[index],
@@ -219,11 +234,8 @@ const CheckoutComp = ({ pendingTickets }) => {
                         validOn: ticket.validOn,
                     };
 
-                    // await setDoc(ticketRef1, ticketData);
-
                     const ticketRef1 = doc(db, "events", ticket.eventId, "tickets", ticket.ticketId); // Set the document ID here
                     await setDoc(ticketRef1, ticketData);
-                    // await addDoc(collection(db, "events", ticket.eventId, "tickets"), ticketData);
                     await deleteDoc(ticketRef);
                 })
             );
@@ -269,225 +281,101 @@ const CheckoutComp = ({ pendingTickets }) => {
     } finally {
         setIsPaymentProcessing(false);
     }
-};
-
-
-
-  // const verifyPaymentStatus = async (transactionId) => {
-  //   // Implement this function to check payment status with M-Pesa API
-  //   // Return 'completed' if payment is successful, otherwise return 'pending' or 'failed'
-  // };
-
-  const handleApplyPromoCode = () => {
-    console.log("Applying promo code:", promoCode);
   };
 
-  const subtotal = pendingTickets.reduce((acc, ticket) => {
-    return acc + parseInt(ticket.price); // Assuming the price is in string format and needs to be parsed to an integer
-  }, 0);
+  const handleConfirmPayment = async () => {
+    try {
+      if (!transactionId) {
+        alert("No transaction ID found. Please initiate the payment first.");
+        return;
+      }
+
+      const response = await fetch(`https://mpesa-backend-api.vercel.app/paymentStatus/${transactionId}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch payment status");
+      }
+
+      const data = await response.json();
+      if (data.message === 'Successful Payment') {
+        setIsPaymentConfirmed(true);
+        alert("Payment confirmed successfully");
+      } else {
+        alert("Payment not yet confirmed. Please try again later.");
+      }
+    } catch (error) {
+      console.error("Error confirming payment:", error);
+      alert("Failed to confirm payment. Please try again later.");
+    }
+  };
 
   return (
-    <>
-      {isPaymentProcessing && (
-        <div className="loader-overlay">
-          <div>
-            <div className="spinner"></div>
-            <p className="loader-text">Processing payment... Please wait.</p>
-          </div>
+    <CheckoutContainer>
+      <BackButton onClick={() => navigate(-1)}>
+        <IoIosArrowRoundBack />
+      </BackButton>
+      <h2>Complete Your Purchase</h2>
+      {pendingTickets.map((ticket, index) => (
+        <div key={ticket.ticketId}>
+          <h4>{ticket.eventName}</h4>
+          <p>Price: {ticket.price}</p>
+          <label>
+            Full Name:
+            <input
+              type="text"
+              value={formData[index]?.full_name || ""}
+              onChange={(e) =>
+                handleInputChange(index, "full_name", e.target.value)
+              }
+            />
+          </label>
+          <label>
+            Email:
+            <input
+              type="email"
+              value={formData[index]?.email || ""}
+              onChange={(e) =>
+                handleInputChange(index, "email", e.target.value)
+              }
+            />
+          </label>
+          <label>
+            Phone Number:
+            <input
+              type="tel"
+              value={formData[index]?.phone_number || ""}
+              onChange={(e) =>
+                handleInputChange(index, "phone_number", e.target.value)
+              }
+            />
+          </label>
+          <label>
+            Gender:
+            <select
+              value={formData[index]?.gender || ""}
+              onChange={(e) =>
+                handleInputChange(index, "gender", e.target.value)
+              }
+            >
+              <option value="">Select Gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
         </div>
-      )}
-
-      {isPaymentConfirmed && (
-        <div className="loader-overlay">
-          <div>
-            <div className="spinner"></div>
-            <p className="loader-test">Payment confirmed! Redirecting...</p>
-          </div>
-        </div>
-      )}
-
-      {!isPaymentProcessing && !isPaymentConfirmed && (
-        <div className="flex flex-row my-20">
-          <div className="w-3/12 h-52 border rounded-xl ml-24 p-6 bg-white shadow">
-            <div className="bg-white h-full">
-              <h2 className="font-bold text-lime-400">Order Summary</h2>
-              <p className="flex items-center font-light text-sm">
-                <IoIosArrowRoundBack />
-                Back
-              </p>
-              <h4 className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
-                Sub-Total{" "}
-                <span className="font-bold ml-8 text-lime-400">
-                  Ksh. {subtotal.toFixed(2)}
-                </span>
-              </h4>
-              <form className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
-                <input
-                  type="text"
-                  value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value)}
-                  placeholder="Promo code:"
-                  className="outline-none px-2 py-1 w-3/4"
-                />
-                <button
-                  type="button"
-                  onClick={handleApplyPromoCode}
-                  className="font-bold ml-2 bg-orange-500 text-white px-4 py-1 rounded"
-                >
-                  Apply
-                </button>
-              </form>
-              <h4 className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
-                Total{" "}
-                <span className="font-bold ml-8 text-lime-400">
-                  Ksh. {subtotal.toFixed(2)}
-                </span>
-              </h4>
-            </div>
-          </div>
-          <div className="w-3/6 h-auto border rounded-xl ml-24 p-6 bg-white shadow">
-            <div className="bg-white h-full">
-              <h1 className="font-bold text-lime-400">Contact Information</h1>
-              <br />
-              {pendingTickets.map((ticket, index) => (
-                <div key={index}>
-                  <h2 className="font-semibold">Attendee {index + 1}</h2>
-                  {expiredTickets.some(
-                    (expiredTicket) => expiredTicket.id === ticket.id
-                  ) ? (
-                    <p>
-                      The ticket associated with this attendee has expired.
-                      Please choose the number of tickets again.
-                    </p>
-                  ) : (
-                    <form>
-                      <div className="flex flex-col">
-                        <div className="flex items-center font-semibold text-sm rounded-sm p-1 m-1">
-                          <div className="border border-gray-300 rounded-sm mr-2">
-                            <input
-                              type="text"
-                              value={formData[index]?.email || ""}
-                              onChange={(e) =>
-                                handleInputChange(
-                                  index,
-                                  "email",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Email:"
-                              className="outline-none px-2 py-1 w-3/4"
-                            />
-                          </div>
-                          <div className="border border-gray-300 rounded-sm">
-                            <input
-                              type="text"
-                              value={formData[index]?.phone_number || ""}
-                              onChange={(e) =>
-                                handleInputChange(
-                                  index,
-                                  "phone_number",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Phone number:"
-                              className="outline-none px-2 py-1 w-3/4"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex items-center font-semibold text-sm rounded-sm p-1 m-1">
-                          <div className="border border-gray-300 rounded-sm mr-2">
-                            <input
-                              type="text"
-                              value={formData[index]?.full_name || ""}
-                              onChange={(e) =>
-                                handleInputChange(
-                                  index,
-                                  "full_name",
-                                  e.target.value
-                                )
-                              }
-                              placeholder="Fullname:"
-                              className="outline-none px-2 py-1 w-3/4"
-                            />
-                          </div>
-                          <div className="border border-gray-300 rounded-sm">
-                            <select
-                              value={formData[index]?.gender || ""}
-                              onChange={(e) =>
-                                handleInputChange(
-                                  index,
-                                  "gender",
-                                  e.target.value
-                                )
-                              }
-                              className="outline-none px-2 py-1 w-4/4"
-                            >
-                              <option value="">Gender</option>
-                              <option value="male">Male</option>
-                              <option value="female">Female</option>
-                            </select>
-                          </div>
-                          <div className="flex items-center font-semibold text-sm rounded-sm p-1 m-1">
-                            <input
-                              type="text"
-                              value={formData[index]?.ticketType || ticket.type} // Populate with ticket type name
-                              readOnly // Make it read-only since we're populating it
-                              className="outline-none px-2 py-1 w-3/4"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <br />
-                    </form>
-                  )}
-                </div>
-              ))}
-
-              <h1 className="font-bold text-lime-400">Payment Information</h1>
-              <div className="flex items-center font-semibold text-sm rounded-sm p-1 m-1">
-                <div className="border border-gray-300 rounded-sm mr-2">
-                  <select className="outline-none px-2 py-1 w-4/4">
-                    <option value="">Mpesa</option>
-                    <option value="male">Paypal</option>
-                    <option value="female">VISA</option>
-                  </select>
-                </div>
-                <div className="border border-gray-300 rounded-sm">
-                  <input
-                    type="text"
-                    value={formData[0]?.phone_number || ""}
-                    onChange={(e) =>
-                      handleInputChange(0, "phone_number", e.target.value)
-                    }
-                    placeholder="Phone number:"
-                    className="outline-none px-2 py-1 w-3/4"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleCompletePayment}
-                className="font-bold ml-2 bg-orange-500 text-white px-4 py-1 rounded my-2"
-              >
-                Complete Payment
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      ))}
+      <button onClick={handleCompletePayment} disabled={isPaymentProcessing}>
+        {isPaymentProcessing ? "Processing Payment..." : "Complete Payment"}
+      </button>
+      <button onClick={handleConfirmPayment} disabled={isPaymentConfirmed}>
+        Confirm Payment
+      </button>
       {paymentFailed && (
-        <div className="loader-overlay">
-          <div>
-            <div className="spinner"></div>
-            <p className="loader-text">
-              Payment verification failed. Please try again or contact support.
-            </p>
-          </div>
-        </div>
+        <p style={{ color: "red" }}>
+          Payment failed or timed out. Redirecting to the event page...
+        </p>
       )}
-    </>
+    </CheckoutContainer>
   );
 };
 
