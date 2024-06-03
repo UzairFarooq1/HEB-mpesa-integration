@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import ProfileCard from './ProfileCard';
 import EventsTabsProfile from './EventsTabsProfile';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import styled from 'styled-components';
 import Header from './Header';
 import { Button } from "@/components/ui/button"
+import { getFirestore } from 'firebase/firestore';
+import { toast } from "react-toastify";
 
 
 
@@ -18,6 +21,10 @@ const Container = styled.div`
 `;
 
 const HostProfile = () => {
+  const db = getFirestore();
+  const auth = getAuth();
+  const user = auth.currentUser;
+  const userId = user ? user.uid : null;
   const [message, setMessage] = useState('');
   const [ticketId, setTicketId] = useState('');
 
@@ -39,20 +46,24 @@ const HostProfile = () => {
         return;
       }
 
-      const response = await fetch(`https://mpesa-backend-api.vercel.app/verify-ticket/${ticketId}`);
+      const response = await fetch(`https://mpesa-backend-api.vercel.app/verify-ticket/${ticketId}?userId=${userId}`);
 
       if (response.ok) {
         const result = await response.json();
         if (result.status === 'verified') {
-          setMessage('Ticket verified successfully');
+          toast.success("Ticket verified successfully");
+          // setMessage('Ticket verified successfully');
         } else if (result.status === 'used') {
-          setMessage('Ticket already used');
+          toast.warn('Ticket has already been used');
+          // setMessage('Ticket already used');
         } else {
-          setMessage('Verification status unknown');
+          toast.warn('Ticket verification failed');
+          // setMessage('Verification status unknown');
         }
       } else {
         const error = await response.text();
-        setMessage(`Verification failed: ${error}`);
+        toast.warn(`Verification failed: ${error}`)
+        // setMessage(`Verification failed: ${error}`);
       }
     } catch (error) {
       console.error('Error during verification:', error);
