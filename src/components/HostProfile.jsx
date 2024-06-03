@@ -4,6 +4,9 @@ import EventsTabsProfile from './EventsTabsProfile';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import styled from 'styled-components';
 import Header from './Header';
+import { Button } from "@/components/ui/button"
+
+
 
 const Container = styled.div`
   display: flex;
@@ -77,7 +80,7 @@ const HostProfile = () => {
         <h1>QR Code Scanner</h1>
         <div id="reader" style={{ width: '500px', marginBottom: '20px' }}></div>
         {message && <p>{message}</p>}
-        <button onClick={verifyTicket}>Verify</button>
+        <Button onClick={verifyTicket}>Verify</Button>
       </Container>
 
       <ProfileCard />
