@@ -215,6 +215,12 @@ app.get("/b2curlrequest", (req, res) => {
     .catch(console.log);
 });
 
-server.listen(port, hostname, () => {
-  console.log(`Server running at http://${hostname}:${port}/`);
-});
+// Only start server if not running on Vercel
+if (process.env.VERCEL !== '1') {
+  server.listen(port, hostname, () => {
+    console.log(`Server running at http://${hostname}:${port}/`);
+  });
+}
+
+// Export app for Vercel serverless functions
+module.exports = app;
