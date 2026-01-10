@@ -106,9 +106,16 @@ router.post('/api/stkpush', (req, res) => {
   // ========== NEW CODE (AFTER EDITING) - START ==========
   try {
     let phoneNumber = req.body.phone;
-    const amount = req.body.amount;
+    let amount = req.body.amount;
     const event = req.body.event || "Event Payment";
     ticketId = req.body.ticketId || `TICKET-${Date.now()}`;
+
+    console.log("Received STK Push Request:", { 
+      phone: phoneNumber, 
+      amount: amount, 
+      event: event,
+      body: req.body 
+    });
 
     // Validate required fields
     if (!phoneNumber) {
@@ -118,18 +125,41 @@ router.post('/api/stkpush', (req, res) => {
       });
     }
 
-    if (!amount || amount <= 0) {
+    // Clean phone number - remove spaces, dashes, and other characters
+    phoneNumber = phoneNumber.toString().replace(/\D/g, '');
+
+    // Validate phone number format
+    if (phoneNumber.length < 9 || phoneNumber.length > 12) {
       return res.status(400).json({ 
-        msg: "Valid amount is required", 
+        msg: "Invalid phone number format", 
         status: false 
       });
     }
 
-    // Format phone number
+    // Format phone number to Kenyan format (254XXXXXXXXX)
     if (phoneNumber.startsWith("0")) {
       phoneNumber = "254" + phoneNumber.slice(1);
-    } else if (!phoneNumber.startsWith("254")) {
+    } else if (phoneNumber.startsWith("254")) {
+      // Already in correct format
+    } else if (phoneNumber.length === 9) {
       phoneNumber = "254" + phoneNumber;
+    } else {
+      return res.status(400).json({ 
+        msg: "Invalid phone number format. Use format: 0712345678 or 254712345678", 
+        status: false 
+      });
+    }
+
+    // Convert amount to number if it's a string
+    if (typeof amount === 'string') {
+      amount = parseFloat(amount);
+    }
+
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ 
+        msg: "Valid amount is required (must be greater than 0)", 
+        status: false 
+      });
     }
 
     console.log("Processing STK Push:", { phoneNumber, amount, ticketId, event });

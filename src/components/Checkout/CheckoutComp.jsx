@@ -190,19 +190,47 @@ const CheckoutComp = ({ pendingTickets }) => {
         }
       );
 
-      const responseData = await response.json();
+      // Try to parse JSON response, handle errors gracefully
+      let responseData;
+      const contentType = response.headers.get("content-type");
+
+      try {
+        if (contentType && contentType.includes("application/json")) {
+          responseData = await response.json();
+        } else {
+          const text = await response.text();
+          console.error("Non-JSON response:", text);
+          throw new Error(
+            `Server error: ${response.status} ${response.statusText}`
+          );
+        }
+      } catch (parseError) {
+        console.error("Error parsing response:", parseError);
+        throw new Error(
+          `Failed to parse server response (Status: ${response.status})`
+        );
+      }
 
       if (!response.ok) {
         const errorMessage =
-          responseData.msg ||
-          responseData.error ||
-          "Failed to initiate payment";
-        console.error("Payment initiation error:", responseData);
+          responseData?.msg ||
+          responseData?.error ||
+          `Failed to initiate payment (Status: ${response.status})`;
+        console.error("Payment initiation error:", {
+          status: response.status,
+          statusText: response.statusText,
+          data: responseData,
+        });
         throw new Error(errorMessage); // <-- NOW SHOWS DETAILED ERROR FROM BACKEND
       }
 
       // Payment initiated successfully
       console.log("Payment initiated successfully:", responseData);
+
+      // Show success message to user
+      if (responseData.msg) {
+        console.log("M-Pesa Prompt:", responseData.msg);
+      }
       // ========== NEW CODE (AFTER EDITING) - END ==========
     } catch (error) {
       console.error("Error completing payment:", error);
