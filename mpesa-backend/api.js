@@ -36,11 +36,26 @@ async function getAccessToken() {
   const auth = "Basic " + Buffer.from(consumer_key + ":" + consumer_secret).toString("base64");
 
   try {
+    console.log("Requesting access token from M-Pesa...");
     const response = await axios.get(url, {
       headers: { Authorization: auth },
+      timeout: 10000 // 10 second timeout
     });
+    
+    if (!response.data || !response.data.access_token) {
+      console.error("Invalid access token response:", response.data);
+      throw new Error("Invalid response from M-Pesa API: No access token received");
+    }
+    
+    console.log("Access token retrieved successfully");
     return response.data.access_token;
   } catch (error) {
+    console.error("Error getting access token:", {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      statusText: error.response?.statusText
+    });
     throw error;
   }
 }
@@ -162,10 +177,32 @@ router.post('/api/stkpush', (req, res) => {
       });
     }
 
-    console.log("Processing STK Push:", { phoneNumber, amount, ticketId, event });
+    // Ensure amount is rounded to nearest whole number (M-Pesa doesn't accept decimals)
+    // Round up to ensure customer pays at least the discounted amount
+    const roundedAmount = Math.ceil(amount);
+    
+    // M-Pesa minimum amount is 1 KSH
+    if (roundedAmount < 1) {
+      return res.status(400).json({ 
+        msg: "Amount must be at least 1 KSH", 
+        status: false 
+      });
+    }
+
+    console.log("Processing STK Push:", { 
+      phoneNumber, 
+      originalAmount: amount, 
+      roundedAmount: roundedAmount,
+      ticketId, 
+      event 
+    });
 
     getAccessToken()
       .then((accessToken) => {
+        if (!accessToken) {
+          throw new Error("Access token is empty or undefined");
+        }
+
         const url = "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
         const auth = "Bearer " + accessToken;
         const timestamp = moment().format("YYYYMMDDHHmmss");
@@ -175,8 +212,15 @@ router.post('/api/stkpush', (req, res) => {
           timestamp
         ).toString("base64");
 
-        // Convert amount to string and ensure it's a whole number (M-Pesa requirement)
-        const amountString = Math.ceil(amount).toString();
+        // Convert amount to string (M-Pesa requires string format)
+        const amountString = roundedAmount.toString();
+        
+        console.log("Sending STK Push to M-Pesa:", {
+          phoneNumber,
+          amount: amountString,
+          timestamp,
+          callbackURL: "https://mpesa-backend-api.vercel.app/api/callback"
+        });
 
         axios.post(
           url,
@@ -196,7 +240,23 @@ router.post('/api/stkpush', (req, res) => {
           { headers: { Authorization: auth } }
         )
         .then((response) => {
-          console.log("STK Push Response:", response.data);
+          console.log("STK Push Response from M-Pesa:", response.data);
+          
+          // Check if M-Pesa returned an error
+          if (response.data && response.data.ResponseCode && response.data.ResponseCode !== "0") {
+            const errorMsg = response.data.CustomerMessage || response.data.errorMessage || "M-Pesa request failed";
+            console.error("M-Pesa API Error:", {
+              ResponseCode: response.data.ResponseCode,
+              CustomerMessage: response.data.CustomerMessage,
+              errorMessage: response.data.errorMessage
+            });
+            return res.status(400).json({ 
+              msg: errorMsg,
+              status: false,
+              mpesaResponse: response.data
+            });
+          }
+
           res.status(200).json({
             msg: "Request is successful done ✔✔. Please enter mpesa pin to complete the transaction",
             status: true,
@@ -204,20 +264,45 @@ router.post('/api/stkpush', (req, res) => {
           });
         })
         .catch((error) => {
-          console.error("STK Push Error:", error.response?.data || error.message);
+          console.error("STK Push Error Details:", {
+            message: error.message,
+            response: error.response?.data,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            stack: error.stack
+          });
+          
+          const errorMessage = error.response?.data?.errorMessage || 
+                              error.response?.data?.CustomerMessage ||
+                              error.message || 
+                              "Request failed";
+          
           res.status(500).json({ 
-            msg: error.response?.data?.errorMessage || "Request failed", 
+            msg: errorMessage, 
             status: false,
-            error: error.response?.data || error.message
+            error: error.response?.data || error.message,
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
           });
         });
       })
       .catch((error) => {
-        console.error("Access Token Error:", error.response?.data || error.message);
+        console.error("Access Token Error Details:", {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          stack: error.stack
+        });
+        
+        const errorMessage = error.response?.data?.errorMessage || 
+                            error.message || 
+                            "Failed to get access token from M-Pesa";
+        
         res.status(500).json({ 
-          msg: "Failed to get access token", 
+          msg: errorMessage, 
           status: false,
-          error: error.response?.data || error.message
+          error: error.response?.data || error.message,
+          details: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
       });
   } catch (error) {
