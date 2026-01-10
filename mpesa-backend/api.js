@@ -49,6 +49,7 @@ let ticketId;
 let latestMpesaReceiptNumber = ""; // Variable to store the latest mpesaReceiptNumber
 
 router.post('/api/stkpush', (req, res) => {
+  /* ========== ORIGINAL CODE (BEFORE EDITING) - START ==========
   let phoneNumber = req.body.phone;
   const amount = req.body.amount;
   ticketId = req.body.ticketId;
@@ -77,11 +78,11 @@ router.post('/api/stkpush', (req, res) => {
           Password: password,
           Timestamp: timestamp,
           TransactionType: "CustomerPayBillOnline",
-          Amount: "1",
+          Amount: "1",  // <-- WAS HARDCODED TO "1"
           PartyA: phoneNumber,
           PartyB: "4326998",
           PhoneNumber: phoneNumber,
-          CallBackURL: "https://heb-events-url.loca.lt/api/callback",
+          CallBackURL: "https://heb-events-url.loca.lt/api/callback",  // <-- OLD CALLBACK URL
           AccountReference: ticketId,
           TransactionDesc: "Mpesa Daraja API stk push test",
         },
@@ -99,7 +100,105 @@ router.post('/api/stkpush', (req, res) => {
         res.status(500).json({ msg: "Request failed", status: false });
       });
     })
-    .catch(console.log);
+    .catch(console.log);  // <-- NO ERROR HANDLING, JUST LOGGED TO CONSOLE
+  ========== ORIGINAL CODE (BEFORE EDITING) - END ========== */
+
+  // ========== NEW CODE (AFTER EDITING) - START ==========
+  try {
+    let phoneNumber = req.body.phone;
+    const amount = req.body.amount;
+    const event = req.body.event || "Event Payment";
+    ticketId = req.body.ticketId || `TICKET-${Date.now()}`;
+
+    // Validate required fields
+    if (!phoneNumber) {
+      return res.status(400).json({ 
+        msg: "Phone number is required", 
+        status: false 
+      });
+    }
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ 
+        msg: "Valid amount is required", 
+        status: false 
+      });
+    }
+
+    // Format phone number
+    if (phoneNumber.startsWith("0")) {
+      phoneNumber = "254" + phoneNumber.slice(1);
+    } else if (!phoneNumber.startsWith("254")) {
+      phoneNumber = "254" + phoneNumber;
+    }
+
+    console.log("Processing STK Push:", { phoneNumber, amount, ticketId, event });
+
+    getAccessToken()
+      .then((accessToken) => {
+        const url = "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
+        const auth = "Bearer " + accessToken;
+        const timestamp = moment().format("YYYYMMDDHHmmss");
+        const password = Buffer.from(
+          "4326998" +
+          "a2153b2f0735e3b2256ab3ccfdbebe38a11756ed910cb7bd2c6f8c106839bac8" +
+          timestamp
+        ).toString("base64");
+
+        // Convert amount to string and ensure it's a whole number (M-Pesa requirement)
+        const amountString = Math.ceil(amount).toString();
+
+        axios.post(
+          url,
+          {
+            BusinessShortCode: "4326998",
+            Password: password,
+            Timestamp: timestamp,
+            TransactionType: "CustomerPayBillOnline",
+            Amount: amountString,  // <-- NOW USES ACTUAL AMOUNT FROM REQUEST
+            PartyA: phoneNumber,
+            PartyB: "4326998",
+            PhoneNumber: phoneNumber,
+            CallBackURL: "https://mpesa-backend-api.vercel.app/api/callback",  // <-- UPDATED CALLBACK URL
+            AccountReference: ticketId,
+            TransactionDesc: event,  // <-- NOW USES EVENT NAME FROM REQUEST
+          },
+          { headers: { Authorization: auth } }
+        )
+        .then((response) => {
+          console.log("STK Push Response:", response.data);
+          res.status(200).json({
+            msg: "Request is successful done ✔✔. Please enter mpesa pin to complete the transaction",
+            status: true,
+            data: response.data
+          });
+        })
+        .catch((error) => {
+          console.error("STK Push Error:", error.response?.data || error.message);
+          res.status(500).json({ 
+            msg: error.response?.data?.errorMessage || "Request failed", 
+            status: false,
+            error: error.response?.data || error.message
+          });
+        });
+      })
+      .catch((error) => {
+        console.error("Access Token Error:", error.response?.data || error.message);
+        res.status(500).json({ 
+          msg: "Failed to get access token", 
+          status: false,
+          error: error.response?.data || error.message
+        });
+      });
+  } catch (error) {
+    console.error("STK Push Handler Error:", error);
+    res.status(500).json({ 
+      msg: "Internal server error", 
+      status: false,
+      error: error.message
+    });
+  }
+  // ========== NEW CODE (AFTER EDITING) - END ==========
 });
 
 router.post("/api/callback", (req, res) => {
@@ -200,6 +299,70 @@ router.get('/api/paidtickets', (req, res) => {
   } catch (error) {
     console.error('Error reading paidticketid.json:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/* ========== ORIGINAL CODE - THIS ENDPOINT DID NOT EXIST ==========
+   The frontend was calling /paymentStatus but this endpoint was missing,
+   which would have caused a 404 error. This is a NEW endpoint added.
+   ========== END OF ORIGINAL CODE NOTE ========== */
+
+// Payment Status endpoint - NEW ENDPOINT ADDED
+router.get('/paymentStatus', (req, res) => {
+  try {
+    // Try to read the latest payment status from stksingleCallbacks.json
+    const callbackData = fs.readFileSync('stksingleCallbacks.json', 'utf8');
+    const callback = JSON.parse(callbackData);
+    
+    if (callback && callback.Body && callback.Body.stkCallback) {
+      const stkCallback = callback.Body.stkCallback;
+      const resultCode = stkCallback.ResultCode;
+      
+      // ResultCode 0 means successful payment
+      if (resultCode === 0 && stkCallback.CallbackMetadata) {
+        const items = stkCallback.CallbackMetadata.Item;
+        const mpesaReceipt = items.find(item => item.Name === 'MpesaReceiptNumber')?.Value || '';
+        
+        return res.json({
+          message: "Successful Payment",
+          mpesaReceipt: mpesaReceipt,
+          status: "success"
+        });
+      } else {
+        return res.json({
+          message: "Payment Pending",
+          status: "pending"
+        });
+      }
+    }
+    
+    // If no callback data found, check paidticketid.json
+    try {
+      const paidTicket = fs.readFileSync('paidticketid.json', 'utf8');
+      const paidData = JSON.parse(paidTicket);
+      
+      if (paidData && paidData.mpesaReceiptNumber) {
+        return res.json({
+          message: "Successful Payment",
+          mpesaReceipt: paidData.mpesaReceiptNumber,
+          status: "success"
+        });
+      }
+    } catch (err) {
+      // File doesn't exist or is invalid
+    }
+    
+    res.json({
+      message: "Payment Pending",
+      status: "pending"
+    });
+  } catch (error) {
+    console.error('Error reading payment status:', error);
+    // If file doesn't exist, payment is still pending
+    res.json({
+      message: "Payment Pending",
+      status: "pending"
+    });
   }
 });
 

@@ -18,6 +18,10 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-session": "^1.18.0",
+    /* ========== ORIGINAL CODE - moment was missing ==========
+       "moment": "^2.29.4",  <-- THIS LINE WAS ADDED
+    ========== END OF ORIGINAL CODE NOTE ========== */
+    "moment": "^2.29.4",
     "next": "^14.2.3"
   }
 }

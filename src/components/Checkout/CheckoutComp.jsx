@@ -27,6 +27,7 @@ const CheckoutComp = ({ pendingTickets }) => {
   const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false);
   const [paymentFailed, setPaymentFailed] = useState(false);
   const [formDataArray, setFormDataArray] = useState([]);
+  const [confirmingPayment, setconfirmingPayment] = useState(false);
 
   // const [mpesaReceipt, setmpesaReceipt] = useState(false);
 
@@ -145,6 +146,9 @@ const CheckoutComp = ({ pendingTickets }) => {
 
       // Send a single payment request
       const phone = formData[0]?.phone_number;
+
+      /* ========== ORIGINAL CODE (BEFORE EDITING) - START ==========
+      const phone = formData[0]?.phone_number;
       const response = await fetch(
         "https://mpesa-backend-api.vercel.app/api/stkpush",
         {
@@ -161,8 +165,45 @@ const CheckoutComp = ({ pendingTickets }) => {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to initiate payment");
+        throw new Error("Failed to initiate payment");  // <-- GENERIC ERROR MESSAGE
       }
+      ========== ORIGINAL CODE (BEFORE EDITING) - END ========== */
+
+      // ========== NEW CODE (AFTER EDITING) - START ==========
+      // Validate phone number before sending
+      if (!phone || phone.trim() === "") {
+        throw new Error("Phone number is required");
+      }
+
+      const response = await fetch(
+        "https://mpesa-backend-api.vercel.app/api/stkpush",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            phone: phone,
+            amount: totalAmount,
+            event: eventName,
+          }),
+        }
+      );
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        const errorMessage =
+          responseData.msg ||
+          responseData.error ||
+          "Failed to initiate payment";
+        console.error("Payment initiation error:", responseData);
+        throw new Error(errorMessage); // <-- NOW SHOWS DETAILED ERROR FROM BACKEND
+      }
+
+      // Payment initiated successfully
+      console.log("Payment initiated successfully:", responseData);
+      // ========== NEW CODE (AFTER EDITING) - END ==========
     } catch (error) {
       console.error("Error completing payment:", error);
       setPaymentFailed(true);
@@ -294,6 +335,10 @@ const CheckoutComp = ({ pendingTickets }) => {
     }
   };
 
+  const handleConfirmPaymentClick = () => {
+    setconfirmingPayment(true);
+    handleConfirmPayment();
+  };
   // const verifyPaymentStatus = async (transactionId) => {
   //   // Implement this function to check payment status with M-Pesa API
   //   // Return 'completed' if payment is successful, otherwise return 'pending' or 'failed'
@@ -318,18 +363,22 @@ const CheckoutComp = ({ pendingTickets }) => {
             </p>
             <br />
             <div style={{ textAlign: "center" }}>
-              <button
-                type="button"
-                onClick={handleConfirmPayment}
-                className="font-bold bg-orange-500 text-white px-4 py-2 rounded"
-              >
-                Confirm Payment
-              </button>
+              {confirmingPayment ? (
+                <div className="button-spinner"></div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleConfirmPaymentClick}
+                  className="font-bold bg-orange-500 text-white px-4 py-2 rounded"
+                >
+                  Confirm Payment
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
-
+      ;
       {isPaymentConfirmed && (
         <div className="loader-overlay">
           <div>
@@ -338,7 +387,6 @@ const CheckoutComp = ({ pendingTickets }) => {
           </div>
         </div>
       )}
-
       {!isPaymentProcessing && !isPaymentConfirmed && (
         <div className="flex flex-row my-20">
           <div className="w-3/12 h-52 border rounded-xl ml-24 p-6 bg-white shadow">
@@ -509,7 +557,6 @@ const CheckoutComp = ({ pendingTickets }) => {
           </div>
         </div>
       )}
-
       {paymentFailed && (
         <div className="loader-overlay">
           <div>
