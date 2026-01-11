@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
   getFirestore,
@@ -32,10 +32,21 @@ const CheckoutComp = ({ pendingTickets }) => {
   // const [mpesaReceipt, setmpesaReceipt] = useState(false);
 
   const navigate = useNavigate();
+  const intervalRef = useRef(null); // Store interval ID to clear it when payment is confirmed
 
   useEffect(() => {
+    // Don't check tickets if payment is already confirmed
+    if (isPaymentConfirmed) {
+      return;
+    }
+
     const checkPendingTickets = async () => {
       try {
+        // Don't check if payment is confirmed
+        if (isPaymentConfirmed) {
+          return;
+        }
+
         pendingTickets.forEach(async (ticket) => {
           const eventId = ticket.eventId; // Extract eventId from the pending ticket
           const db = getFirestore();
@@ -93,11 +104,39 @@ const CheckoutComp = ({ pendingTickets }) => {
     checkPendingTickets();
 
     // Check pending tickets every 5 seconds
-    const interval = setInterval(checkPendingTickets, 5000);
+    intervalRef.current = setInterval(checkPendingTickets, 5000);
 
-    // Clear interval on component unmount
-    return () => clearInterval(interval);
-  }, [pendingTickets, navigate]);
+    // Clear interval on component unmount or when payment is confirmed
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [pendingTickets, navigate, isPaymentConfirmed]);
+
+  // Prevent back navigation after payment is confirmed
+  useEffect(() => {
+    if (isPaymentConfirmed) {
+      // Replace current history entry to prevent back navigation
+      window.history.replaceState(null, "", window.location.pathname);
+
+      // Add popstate listener to prevent back navigation
+      const handlePopState = () => {
+        // Prevent going back after payment is confirmed
+        window.history.pushState(null, "", window.location.pathname);
+        // Optionally show a message
+        console.log("Cannot go back after payment is confirmed");
+      };
+
+      window.addEventListener("popstate", handlePopState);
+
+      // Cleanup
+      return () => {
+        window.removeEventListener("popstate", handlePopState);
+      };
+    }
+  }, [isPaymentConfirmed]);
 
   const handleInputChange = (index, field, value) => {
     const updatedFormData = [...formData];
@@ -136,10 +175,43 @@ const CheckoutComp = ({ pendingTickets }) => {
       setFormDataArray(formDataArray);
 
       // Calculate total amount for all tickets
-      const totalAmount = pendingTickets.reduce(
-        (total, ticket) => total + ticket.price,
-        0
+      // Ensure we're using numbers, not strings
+      let totalAmount = pendingTickets.reduce((total, ticket) => {
+        const price =
+          typeof ticket.price === "string"
+            ? parseFloat(ticket.price)
+            : ticket.price;
+        return total + (price || 0);
+      }, 0);
+
+      console.log("Raw total amount (before rounding):", totalAmount);
+      console.log(
+        "Ticket prices:",
+        pendingTickets.map((t) => ({ type: t.type, price: t.price }))
       );
+
+      // Ensure totalAmount is a valid number
+      if (isNaN(totalAmount) || totalAmount <= 0) {
+        throw new Error(
+          "Invalid total amount. Please check your ticket prices."
+        );
+      }
+
+      // Round up to nearest whole number for M-Pesa (M-Pesa doesn't accept decimals)
+      // Ensure minimum 1 KSH (M-Pesa minimum transaction amount)
+      const roundedAmount = Math.max(1, Math.ceil(totalAmount));
+
+      console.log("Final amount to send to M-Pesa:", roundedAmount);
+
+      // Warn if original amount was very small (might indicate promo code issue)
+      if (totalAmount < 1 && roundedAmount === 1) {
+        console.warn(
+          "Warning: Original amount was less than 1 KSH. Rounded up to 1 KSH for M-Pesa minimum."
+        );
+      }
+
+      // Use rounded amount for payment
+      totalAmount = roundedAmount;
 
       setIsPaymentProcessing(true);
       setPaymentFailed(false);
@@ -235,6 +307,13 @@ const CheckoutComp = ({ pendingTickets }) => {
     } catch (error) {
       console.error("Error completing payment:", error);
       setPaymentFailed(true);
+
+      // Clear interval on error as well
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+
       setTimeout(() => {
         navigate(`/event/${pendingTickets[0].eventId}`);
       }, 3000);
@@ -342,9 +421,23 @@ const CheckoutComp = ({ pendingTickets }) => {
 
         setIsPaymentProcessing(false);
         setIsPaymentConfirmed(true);
+
+        // Clear the interval timer since payment is confirmed
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+          console.log("Payment confirmed - timer cleared");
+        }
+
+        // Prevent back navigation after successful payment
+        // Replace current history entry so back button doesn't go to checkout
+        window.history.replaceState(null, "", window.location.pathname);
+
+        // Navigate to home after 3 seconds (using replace to prevent back navigation)
         setTimeout(() => {
-          navigate("/");
+          navigate("/", { replace: true }); // Use replace to prevent back navigation
         }, 3000);
+
         setFormData([]); // Reset form data
       } else {
         setPaymentFailed(true);
@@ -376,9 +469,18 @@ const CheckoutComp = ({ pendingTickets }) => {
     console.log("Applying promo code:", promoCode);
   };
 
-  const subtotal = pendingTickets.reduce((acc, ticket) => {
-    return acc + parseInt(ticket.price); // Assuming the price is in string format and needs to be parsed to an integer
-  }, 0);
+  // Calculate subtotal - handle both string and number prices
+  // Add safety check to ensure pendingTickets is an array
+  const subtotal =
+    pendingTickets && Array.isArray(pendingTickets) && pendingTickets.length > 0
+      ? pendingTickets.reduce((acc, ticket) => {
+          const price =
+            typeof ticket.price === "string"
+              ? parseFloat(ticket.price)
+              : ticket.price;
+          return acc + (price || 0);
+        }, 0)
+      : 0;
 
   return (
     <>
@@ -420,10 +522,28 @@ const CheckoutComp = ({ pendingTickets }) => {
           <div className="w-3/12 h-52 border rounded-xl ml-24 p-6 bg-white shadow">
             <div className="bg-white h-full">
               <h2 className="font-bold text-lime-400">Order Summary</h2>
-              <p className="flex items-center font-light text-sm">
-                <IoIosArrowRoundBack />
-                Back
-              </p>
+              {!isPaymentConfirmed && (
+                <p
+                  className="flex items-center font-light text-sm cursor-pointer hover:text-lime-400"
+                  onClick={() => {
+                    if (!isPaymentConfirmed && !isPaymentProcessing) {
+                      navigate(-1);
+                    }
+                  }}
+                  style={{
+                    pointerEvents: isPaymentProcessing ? "none" : "auto",
+                    opacity: isPaymentProcessing ? 0.5 : 1,
+                  }}
+                >
+                  <IoIosArrowRoundBack />
+                  Back
+                </p>
+              )}
+              {isPaymentConfirmed && (
+                <p className="flex items-center font-light text-sm text-gray-400">
+                  Payment Confirmed ✓
+                </p>
+              )}
               <h4 className="flex items-center font-semibold text-sm w-4/5 border-2 rounded-sm p-1 bg-slate-200 m-1">
                 Sub-Total{" "}
                 <span className="font-bold ml-8 text-lime-400">
