@@ -134,3 +134,4 @@ After deployment, if you still get a 500 error:
 2. Test with a real payment
 3. Check logs if errors persist
 4. Report specific error messages if issues continue
+

@@ -6,9 +6,10 @@ import {
   getDoc,
   setDoc,
   getDocs,
-  addDoc,
   deleteDoc,
   collection,
+  query,
+  where,
 } from "firebase/firestore";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
@@ -28,8 +29,9 @@ const CheckoutComp = ({ pendingTickets }) => {
   const [paymentFailed, setPaymentFailed] = useState(false);
   const [formDataArray, setFormDataArray] = useState([]);
   const [confirmingPayment, setconfirmingPayment] = useState(false);
-
-  // const [mpesaReceipt, setmpesaReceipt] = useState(false);
+  const [mpesaReceiptInput, setMpesaReceiptInput] = useState("");
+  const [verifyingReceipt, setVerifyingReceipt] = useState(false);
+  const [receiptVerifyError, setReceiptVerifyError] = useState("");
 
   const navigate = useNavigate();
   const intervalRef = useRef(null); // Store interval ID to clear it when payment is confirmed
@@ -143,6 +145,244 @@ const CheckoutComp = ({ pendingTickets }) => {
     updatedFormData[index] = { ...updatedFormData[index], [field]: value };
     setFormData(updatedFormData);
   };
+
+  const getOrderTotal = () => {
+    const total = pendingTickets.reduce((sum, ticket) => {
+      const price =
+        typeof ticket.price === "string"
+          ? parseFloat(ticket.price)
+          : ticket.price;
+      return sum + (price || 0);
+    }, 0);
+    return Math.max(1, Math.ceil(total));
+  };
+
+  const ensureFormDataArray = async () => {
+    if (formDataArray.length > 0) return formDataArray;
+
+    const db = getFirestore();
+    const built = await Promise.all(
+      pendingTickets.map(async (ticket, index) => {
+        const eventRef = doc(db, "events", ticket.eventId);
+        const eventSnapshot = await getDoc(eventRef);
+        if (!eventSnapshot.exists()) {
+          throw new Error(`Event with ID ${ticket.eventId} not found`);
+        }
+        const eventData = eventSnapshot.data();
+        hostId = eventData.userId || hostId;
+        eventName = eventData.eventName || eventName;
+        return {
+          email: formData[index]?.email || "",
+          phone_number: formData[index]?.phone_number || "",
+          gender: formData[index]?.gender || "",
+          full_name: formData[index]?.full_name || "",
+          type: ticket.type,
+          amount: ticket.price,
+          eventDesc: eventData.eventName || eventName,
+        };
+      }),
+    );
+    setFormDataArray(built);
+    return built;
+  };
+
+  const checkReceiptNotUsed = async (receipt) => {
+    const db = getFirestore();
+    const eventIds = [...new Set(pendingTickets.map((t) => t.eventId))];
+
+    for (const eventId of eventIds) {
+      const ticketsQuery = query(
+        collection(db, "events", eventId, "tickets"),
+        where("mpesaReceiptNumber", "==", receipt),
+      );
+      const snapshot = await getDocs(ticketsQuery);
+      if (!snapshot.empty) {
+        throw new Error(
+          "This M-Pesa receipt has already been used to register tickets.",
+        );
+      }
+    }
+  };
+
+  const finalizePayment = async (receipt) => {
+    await checkReceiptNotUsed(receipt);
+    const emailFormData = await ensureFormDataArray();
+    const db = getFirestore();
+
+    await Promise.all(
+      pendingTickets.map(async (ticket, index) => {
+        const ticketRef = doc(
+          db,
+          "events",
+          ticket.eventId,
+          "pendingTickets",
+          ticket.ticketId,
+        );
+        const ticketSnapshot = await getDoc(ticketRef);
+
+        if (!ticketSnapshot.exists()) {
+          alert(
+            "The timeout for this ticket has expired. You will be redirected to the Event Details page.",
+          );
+          navigate(`/event/${ticket.eventId}`);
+          return;
+        }
+
+        const ticketData = {
+          ...formData[index],
+          price: ticket.price,
+          ticketId: ticket.ticketId,
+          mpesaReceiptNumber: receipt,
+          type: ticket.type,
+          eventId: ticket.eventId,
+          host: hostId,
+          used: false,
+          validOn: ticket.validOn,
+        };
+
+        const ticketRef1 = doc(
+          db,
+          "events",
+          ticket.eventId,
+          "tickets",
+          ticket.ticketId,
+        );
+        await setDoc(ticketRef1, ticketData);
+        await deleteDoc(ticketRef);
+      }),
+    );
+
+    await Promise.all(
+      pendingTickets.map(async (ticket, index) => {
+        const updatedFormDataArray = emailFormData.map((data) => ({
+          ...data,
+          ticketId: ticket.ticketId,
+          mpesaReceipt: receipt,
+        }));
+        const payload = updatedFormDataArray[index];
+
+        await fetch("https://email-server-flax.vercel.app/send-email", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+      }),
+    );
+
+    mpesaReceipt = receipt;
+    setIsPaymentProcessing(false);
+    setIsPaymentConfirmed(true);
+    setPaymentFailed(false);
+    setReceiptVerifyError("");
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    window.history.replaceState(null, "", window.location.pathname);
+
+    setTimeout(() => {
+      navigate("/", { replace: true });
+    }, 3000);
+
+    setFormData([]);
+  };
+
+  const handleVerifyReceipt = async () => {
+    const receiptCode = mpesaReceiptInput.trim();
+    if (!receiptCode) {
+      setReceiptVerifyError("Enter the M-Pesa confirmation code from your SMS.");
+      return;
+    }
+
+    try {
+      setVerifyingReceipt(true);
+      setReceiptVerifyError("");
+      setPaymentFailed(false);
+
+      const phone = formData[0]?.phone_number;
+      if (!phone || phone.trim() === "") {
+        throw new Error("Phone number is required before verifying payment.");
+      }
+
+      await ensureFormDataArray();
+
+      const response = await fetch(
+        "https://mpesa-backend-api.vercel.app/api/verify-receipt",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            receiptCode,
+            amount: getOrderTotal(),
+          }),
+        },
+      );
+
+      const data = await response.json();
+      if (!response.ok || !data.status) {
+        throw new Error(
+          data.msg || data.message || "Could not verify this receipt code.",
+        );
+      }
+
+      await finalizePayment(data.mpesaReceipt);
+    } catch (error) {
+      console.error("Receipt verification error:", error);
+      setReceiptVerifyError(
+        error.message || "Failed to verify receipt. Please try again.",
+      );
+    } finally {
+      setVerifyingReceipt(false);
+    }
+  };
+
+  const ReceiptVerificationBlock = ({ compact = false }) => (
+    <div
+      className={
+        compact
+          ? "mt-4 pt-4 border-t border-gray-200"
+          : "mt-6 p-4 border border-amber-200 rounded-lg bg-amber-50"
+      }
+    >
+      <p
+        className={`text-sm ${compact ? "text-gray-600 mb-2" : "text-amber-900 font-medium mb-2"}`}
+      >
+        {compact
+          ? "Already paid via M-Pesa? Enter your confirmation code:"
+          : "Paid on M-Pesa but tickets not confirmed? Enter the confirmation code from your M-Pesa SMS (e.g. QJK1ABC2DE):"}
+      </p>
+      <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+        <input
+          type="text"
+          value={mpesaReceiptInput}
+          onChange={(e) => {
+            setMpesaReceiptInput(e.target.value.toUpperCase());
+            setReceiptVerifyError("");
+          }}
+          placeholder="M-Pesa receipt code"
+          className="outline-none px-3 py-2 border border-gray-300 rounded flex-1 uppercase tracking-wide"
+          disabled={verifyingReceipt || isPaymentConfirmed}
+        />
+        <button
+          type="button"
+          onClick={handleVerifyReceipt}
+          disabled={verifyingReceipt || isPaymentConfirmed}
+          className="font-bold bg-lime-600 hover:bg-lime-700 text-white px-4 py-2 rounded disabled:opacity-50 whitespace-nowrap"
+        >
+          {verifyingReceipt ? "Verifying..." : "Verify Payment"}
+        </button>
+      </div>
+      {receiptVerifyError && (
+        <p className="text-red-600 text-sm mt-2">{receiptVerifyError}</p>
+      )}
+    </div>
+  );
 
   const handleCompletePayment = async () => {
     try {
@@ -349,110 +589,23 @@ const CheckoutComp = ({ pendingTickets }) => {
       }
 
       if (ticketPaid) {
-        const db = getFirestore();
-
-        await Promise.all(
-          pendingTickets.map(async (ticket, index) => {
-            // Check if the ticket is still pending
-            const ticketRef = doc(
-              db,
-              "events",
-              ticket.eventId,
-              "pendingTickets",
-              ticket.ticketId
-            );
-            const ticketSnapshot = await getDoc(ticketRef);
-
-            if (!ticketSnapshot.exists()) {
-              // If the ticket does not exist in the pendingTickets collection, show an alert and redirect to the event page
-              alert(
-                "The timeout for this ticket has expired. You will be redirected to the Event Details page."
-              );
-              navigate(`/event/${ticket.eventId}`);
-              return; // Skip processing this ticket
-            }
-
-            // Proceed with registering the ticket
-            const ticketData = {
-              ...formData[index],
-              price: ticket.price,
-              ticketId: ticket.ticketId,
-              mpesaReceiptNumber: mpesaReceipt,
-              type: ticket.type,
-              eventId: ticket.eventId,
-              host: hostId,
-              used: false,
-              validOn: ticket.validOn,
-            };
-
-            const ticketRef1 = doc(
-              db,
-              "events",
-              ticket.eventId,
-              "tickets",
-              ticket.ticketId
-            ); // Set the document ID here
-            await setDoc(ticketRef1, ticketData);
-            await deleteDoc(ticketRef);
-          })
-        );
-
-        // Construct formDataArray
-        // Construct formDataArray
-        // Update formDataArray with mpesaReceipt and send email
-        await Promise.all(
-          pendingTickets.map(async (ticket, index) => {
-            const updatedFormDataArray = formDataArray.map((data) => ({
-              ...data,
-              ticketId: ticket.ticketId,
-              mpesaReceipt: mpesaReceipt, // Add mpesaReceipt to each entry
-            }));
-            const formData = updatedFormDataArray[index];
-
-            await fetch("https://email-server-flax.vercel.app/send-email", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(formData), // Include eventDesc and mpesaReceipt in the data sent to the server
-            });
-          })
-        );
-
-        setIsPaymentProcessing(false);
-        setIsPaymentConfirmed(true);
-
-        // Clear the interval timer since payment is confirmed
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-          console.log("Payment confirmed - timer cleared");
-        }
-
-        // Prevent back navigation after successful payment
-        // Replace current history entry so back button doesn't go to checkout
-        window.history.replaceState(null, "", window.location.pathname);
-
-        // Navigate to home after 3 seconds (using replace to prevent back navigation)
-        setTimeout(() => {
-          navigate("/", { replace: true }); // Use replace to prevent back navigation
-        }, 3000);
-
-        setFormData([]); // Reset form data
+        await finalizePayment(mpesaReceipt);
       } else {
         setPaymentFailed(true);
-        setTimeout(() => {
-          navigate(`/event/${pendingTickets[0].eventId}`);
-        }, 3000);
+        setReceiptVerifyError(
+          "Automatic confirmation timed out. If you already paid, enter your M-Pesa receipt code below.",
+        );
       }
     } catch (error) {
       console.error("Error confirming payment:", error);
       setPaymentFailed(true);
-      setTimeout(() => {
-        navigate(`/event/${pendingTickets[0].eventId}`);
-      }, 3000);
+      setReceiptVerifyError(
+        error.message ||
+          "Could not confirm payment automatically. Enter your M-Pesa receipt code if you already paid.",
+      );
     } finally {
       setIsPaymentProcessing(false);
+      setconfirmingPayment(false);
     }
   };
 
@@ -486,10 +639,10 @@ const CheckoutComp = ({ pendingTickets }) => {
     <>
       {isPaymentProcessing && (
         <div className="loader-overlay">
-          <div>
+          <div className="max-w-md w-full mx-4 p-6 bg-white rounded-lg shadow-lg">
             <div className="spinner"></div>
             <p className="loader-text">
-              Processing payment... Please enter your mpesa pin in the prompt.
+              Processing payment... Please enter your M-Pesa PIN in the prompt.
             </p>
             <br />
             <div style={{ textAlign: "center" }}>
@@ -505,10 +658,10 @@ const CheckoutComp = ({ pendingTickets }) => {
                 </button>
               )}
             </div>
+            <ReceiptVerificationBlock compact />
           </div>
         </div>
       )}
-      ;
       {isPaymentConfirmed && (
         <div className="loader-overlay">
           <div>
@@ -701,17 +854,30 @@ const CheckoutComp = ({ pendingTickets }) => {
               >
                 Complete Payment
               </button>
+
+              <ReceiptVerificationBlock />
             </div>
           </div>
         </div>
       )}
-      {paymentFailed && (
+      {paymentFailed && !isPaymentConfirmed && (
         <div className="loader-overlay">
-          <div>
-            <div className="spinner"></div>
-            <p className="loader-text">
-              Payment verification failed. Please try again or contact support.
+          <div className="max-w-md w-full mx-4 p-6 bg-white rounded-lg shadow-lg">
+            <p className="loader-text mb-2">
+              Payment could not be confirmed automatically. If M-Pesa deducted
+              your money, enter the confirmation code from your SMS below.
             </p>
+            <ReceiptVerificationBlock compact />
+            <button
+              type="button"
+              onClick={() => {
+                setPaymentFailed(false);
+                setReceiptVerifyError("");
+              }}
+              className="mt-4 font-bold bg-gray-500 text-white px-4 py-2 rounded w-full"
+            >
+              Back to checkout
+            </button>
           </div>
         </div>
       )}

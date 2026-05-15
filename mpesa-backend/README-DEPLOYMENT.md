@@ -87,3 +87,4 @@ If you get a 500 error:
 2. Ensure `moment` package is installed (check package.json)
 3. Verify the callback URL is accessible
 4. Check that M-Pesa API credentials are correct
+

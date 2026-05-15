@@ -123,3 +123,4 @@ For production, use environment variables instead of hardcoded credentials:
 - [ ] M-Pesa account has balance
 - [ ] Check browser console for errors
 - [ ] Check Vercel function logs
+
