@@ -64,7 +64,7 @@
 
 - The backend URL should be: `https://mpesa-backend-api.vercel.app` (or your custom domain)
 - Make sure the callback URL in `api.js` matches your deployed backend URL
-- File system writes (like `stkcallback.json`) may not persist on Vercel serverless functions - consider using a database instead for production
+- Payment callbacks are stored in Firestore because file system writes do not persist reliably on Vercel serverless functions.
 
 ## Testing After Deployment
 

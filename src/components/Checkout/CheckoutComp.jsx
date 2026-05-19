@@ -20,6 +20,11 @@ let mpesaReceipt;
 let eventName;
 let hostId;
 
+const MAILER_API_URL =
+  import.meta.env.VITE_MAILER_API_URL ||
+  "https://mailer.halaleventbrite.co.ke";
+const MAILER_API_KEY = import.meta.env.VITE_MAILER_API_KEY;
+
 const CheckoutComp = ({ pendingTickets }) => {
   const [promoCode, setPromoCode] = useState("");
   const [formData, setFormData] = useState([]);
@@ -32,6 +37,7 @@ const CheckoutComp = ({ pendingTickets }) => {
   const [mpesaReceiptInput, setMpesaReceiptInput] = useState("");
   const [verifyingReceipt, setVerifyingReceipt] = useState(false);
   const [receiptVerifyError, setReceiptVerifyError] = useState("");
+  const [checkoutRequestID, setCheckoutRequestID] = useState("");
 
   const navigate = useNavigate();
   const intervalRef = useRef(null); // Store interval ID to clear it when payment is confirmed
@@ -261,10 +267,11 @@ const CheckoutComp = ({ pendingTickets }) => {
         }));
         const payload = updatedFormDataArray[index];
 
-        await fetch("https://email-server-flax.vercel.app/send-email", {
+        await fetch(`${MAILER_API_URL}/send-email`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...(MAILER_API_KEY ? { "x-api-key": MAILER_API_KEY } : {}),
           },
           body: JSON.stringify(payload),
         });
@@ -472,6 +479,8 @@ const CheckoutComp = ({ pendingTickets }) => {
             phone: phone,
             amount: totalAmount,
             event: eventName,
+            ticketId: pendingTickets[0]?.ticketId,
+            ticketIds: pendingTickets.map((ticket) => ticket.ticketId),
           }),
         }
       );
@@ -538,6 +547,7 @@ const CheckoutComp = ({ pendingTickets }) => {
 
       // Payment initiated successfully
       console.log("Payment initiated successfully:", responseData);
+      setCheckoutRequestID(responseData.checkoutRequestID || "");
 
       // Show success message to user
       if (responseData.msg) {
@@ -568,11 +578,14 @@ const CheckoutComp = ({ pendingTickets }) => {
       const startTime = Date.now();
       let ticketPaid = false;
       const maxTimeout = 20000; // 20 seconds timeout
+      const statusUrl = checkoutRequestID
+        ? `https://mpesa-backend-api.vercel.app/paymentStatus?checkoutRequestID=${encodeURIComponent(
+            checkoutRequestID,
+          )}`
+        : "https://mpesa-backend-api.vercel.app/paymentStatus";
 
       while (Date.now() - startTime < maxTimeout) {
-        const paymentStatusResponse = await fetch(
-          "https://mpesa-backend-api.vercel.app/paymentStatus"
-        );
+        const paymentStatusResponse = await fetch(statusUrl);
         if (!paymentStatusResponse.ok) {
           console.error("Failed to fetch payment status");
           throw new Error("Failed to fetch payment status");

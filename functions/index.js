@@ -3,7 +3,6 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const axios = require("axios");
 const moment = require("moment");
-const fs = require("fs");
 
 admin.initializeApp();
 
@@ -88,7 +87,7 @@ exports.stkpush = functions.https.onRequest(async (req, res) => {
 });
 
 // STK PUSH CALLBACK FUNCTION
-exports.callback = functions.https.onRequest((req, res) => {
+exports.callback = functions.https.onRequest(async (req, res) => {
   console.log("STK PUSH CALLBACK");
   const merchantRequestID = req.body.Body.stkCallback.MerchantRequestID;
   const checkoutRequestID = req.body.Body.stkCallback.CheckoutRequestID;
@@ -109,12 +108,17 @@ exports.callback = functions.https.onRequest((req, res) => {
   console.log("TransactionDate:", transactionDate);
   console.log("PhoneNumber:", phoneNumber);
 
-  const json = JSON.stringify(req.body);
-  fs.writeFile("stkcallback.json", json, "utf8", (err) => {
-    if (err) {
-      return console.log(err);
-    }
-    console.log("STK PUSH CALLBACK STORED SUCCESSFULLY");
+  await admin.firestore().collection("callbacks").doc(checkoutRequestID).set({
+    merchantRequestID,
+    checkoutRequestID,
+    resultCode,
+    resultDesc,
+    amount,
+    mpesaReceiptNumber,
+    transactionDate,
+    phoneNumber,
+    rawBody: req.body,
+    receivedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
   res.status(200).send("STK PUSH CALLBACK RECEIVED");

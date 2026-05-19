@@ -9,6 +9,8 @@
   
 */
 
+require("dotenv").config();
+
 const express = require("express");
 const app = express();
 const http = require("http");
@@ -17,7 +19,6 @@ const axios = require("axios"); // Import 'axios' instead of 'request'
 const moment = require("moment");
 const apiRouter = require('./api');
 const cors = require("cors");
-const fs = require("fs");
 
 
 const port = 3070;
@@ -29,12 +30,22 @@ app.use('/', apiRouter);
 
 const server = http.createServer(app);
 
+const MPESA_BASE_URL =
+  process.env.MPESA_BASE_URL || "https://api.safaricom.co.ke";
+
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
 // ACCESS TOKEN FUNCTION - Updated to use 'axios'
 async function getAccessToken() {
-    const consumer_key= "pM1cozMMsZMMI2vEBAh5uaAjFlOyvfGkwRxFXsdIViP7Toki"//halal
-    const consumer_secret = "O4gWvHyp3IhaJran4F8j4Kl1qDmHoHKCG8AkAsE0GN67Dyf1TvhDoaRDBr2FGecw"//halal
-  const url =
-  "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials";
+  const consumer_key = requireEnv("MPESA_CONSUMER_KEY");
+  const consumer_secret = requireEnv("MPESA_CONSUMER_SECRET");
+  const url = `${MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials`;
   const auth =
     "Basic " +
     new Buffer.from(consumer_key + ":" + consumer_secret).toString("base64");
@@ -79,23 +90,23 @@ app.get("/stkpush", (req, res) => {
         "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
       const auth = "Bearer " + accessToken;
       const timestamp = moment().format("YYYYMMDDHHmmss");
+      const shortcode = requireEnv("MPESA_SHORTCODE");
+      const passkey = requireEnv("MPESA_PASSKEY");
       const password = new Buffer.from(
-        "4326998" +
-        "a2153b2f0735e3b2256ab3ccfdbebe38a11756ed910cb7bd2c6f8c106839bac8" +
-          timestamp
+        shortcode + passkey + timestamp
       ).toString("base64");
 
       axios
         .post(
           url,
           {
-            BusinessShortCode: "4326998",
+            BusinessShortCode: shortcode,
             Password: password,
             Timestamp: timestamp,
             TransactionType: "CustomerPayBillOnline",
             Amount: "1",
             PartyA: "254791495274", //phone number to receive the stk push
-            PartyB: "4326998",
+            PartyB: shortcode,
             PhoneNumber: "254791495274",
             CallBackURL: "https://stirring-seasnail-mildly.ngrok-free.app/callback",
             AccountReference: "UMESKIA PAY",
@@ -121,16 +132,10 @@ app.get("/stkpush", (req, res) => {
 //STK PUSH CALLBACK ROUTE
 app.post("/callback", (req, res) => {
   console.log("STK PUSH CALLBACK");
-  const CheckoutRequestID = req.body.Body.stkCallback.CheckoutRequestID;
-  const ResultCode = req.body.Body.stkCallback.ResultCode;
-  var json = JSON.stringify(req.body);
-  fs.writeFile("stkcallback.json", json, "utf8", function (err) {
-    if (err) {
-      return console.log(err);
-    }
-    console.log("STK PUSH CALLBACK JSON FILE SAVED");
-  });
   console.log(req.body);
+  res.status(410).json({
+    message: "Use /api/callback. Payment callbacks are stored in Firestore.",
+  });
 });
 
 // REGISTER URL FOR C2B
@@ -143,7 +148,7 @@ app.get("/registerurl", (req, resp) => {
         .post(
           url,
           {
-            ShortCode: "4326998",
+            ShortCode: requireEnv("MPESA_SHORTCODE"),
             ResponseType: "Completed",
             ConfirmationURL: "http://uzairdevportfolio.tech/confirmation",
             ValidationURL: "http://uzairdevportfolio.tech/validation",

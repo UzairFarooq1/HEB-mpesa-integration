@@ -1,40 +1,87 @@
-// Require necessary modules
 require("dotenv").config();
+
 const express = require("express");
 const multer = require("multer");
-const nodemailer = require("nodemailer");
-const { PDFDocument } = require("pdf-lib");
-const QRCode = require("qrcode");
-const uuid = require("uuid"); // Import uuid for generating unique IDs
-const fs = require("fs"); // Import fs for file system operations
+const uuid = require("uuid");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
+const {
+  generateTicketPdf,
+  saveTicketPdf,
+} = require("../services/ticketPdfService");
+const { createTransporter, getFromAddress } = require("../services/mailerService");
 
-// Create an Express app
 const app = express();
 
-// Use the cors middleware
-app.use(cors());
+function parseAllowedOrigins() {
+  const configured = process.env.ALLOWED_ORIGINS;
+  if (configured) {
+    return configured
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+  }
 
-// Parse incoming JSON request bodies
+  return [
+    "https://ticketing.halaleventbrite.co.ke",
+    "https://halaleventbrite.co.ke",
+    "http://localhost:3000",
+    "http://localhost:5173",
+  ];
+}
+
+const allowedOrigins = parseAllowedOrigins();
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Origin not allowed"));
+    },
+  }),
+);
+
+app.use(
+  rateLimit({
+    windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 60000),
+    max: Number(process.env.RATE_LIMIT_MAX || 50),
+    standardHeaders: true,
+    legacyHeaders: false,
+  }),
+);
+
 app.use(express.json());
 
-// Set up Multer for handling file uploads
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ storage });
+const transporter = createTransporter();
 
-// Create Nodemailer transporter
-const transporter = nodemailer.createTransport({
-  service: "Gmail",
-  auth: {
-    user: process.env.EMAIL_ADDRESS,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
+function validateApiKey(req, res, next) {
+  const expectedApiKey = process.env.MAILER_API_KEY;
+  if (!expectedApiKey) return next();
 
-// Define route for sending emails with attachments
-app.post("/send-email", upload.none(), async (req, res) => {
+  const providedApiKey = req.get("x-api-key");
+  if (providedApiKey !== expectedApiKey) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  return next();
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+app.post("/send-email", validateApiKey, upload.none(), async (req, res) => {
   try {
-    // Extract data from request body
     const {
       email,
       phone_number,
@@ -47,182 +94,107 @@ app.post("/send-email", upload.none(), async (req, res) => {
       mpesaReceipt,
     } = req.body;
 
-    // Validate required fields
     if (!email || !full_name) {
       return res.status(400).json({
         error: "Missing required fields: email and full_name are required",
       });
     }
 
-    // Use eventDesc from request, fallback to default
     const ticketFor = eventDesc || "Event";
-
-    // Use ticketId from request if provided, otherwise generate one
     const finalTicketId = ticketId || uuid.v4();
-
-    // Generate QR code from ticket data and ID
-    const qrCodeData = JSON.stringify({
-      full_name,
+    const ticket = {
+      email,
       phone_number,
       type,
-      ticketId: finalTicketId,
+      full_name,
       gender,
-    });
-    const qrCodeImage = await QRCode.toDataURL(qrCodeData);
+      amount,
+      eventDesc: ticketFor,
+      ticketId: finalTicketId,
+      mpesaReceipt,
+    };
 
-    // Generate PDF attachment
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage();
-
-    // Try to add PNG logo if it exists (optional, won't fail if missing)
-    try {
-      const logoPath = "../server/heblogo.png";
-      if (fs.existsSync(logoPath)) {
-        const logoImageBytes = fs.readFileSync(logoPath);
-        const logoImage = await pdfDoc.embedPng(logoImageBytes);
-        const logoDims = 100;
-        page.drawImage(logoImage, {
-          x: page.getWidth() * 0.2, // Moved left by 20%
-          y: page.getHeight() * 0.7, // Moved up by 70%
-          width: logoDims,
-          height: logoDims,
-        });
-      }
-    } catch (logoError) {
-      console.warn(
-        "Logo not found or could not be loaded, continuing without logo:",
-        logoError.message
-      );
-    }
-    // Add ticket details
-    const textX = page.getWidth() * 0.2; // Moved left by 20%
-    let textY = page.getHeight() * 0.5; // Moved down by 50%
-
-    // Add ticket details
-    page.drawText(`Ticket for ${full_name}`, {
-      x: textX,
-      y: textY + 100,
-      size: 18,
-      align: "center",
-    });
-    page.drawText(`Ticket Type: ${type || "N/A"}`, {
-      x: textX,
-      y: textY + 70,
-      size: 14,
-      align: "center",
-    });
-    page.drawText(`Amount: Ksh ${amount || "0.00"}`, {
-      x: textX,
-      y: textY + 40,
-      size: 14,
-      align: "center",
-    });
-    page.drawText(`Mpesa Receipt: ${mpesaReceipt || "N/A"}`, {
-      x: textX,
-      y: textY + 10,
-      size: 14,
-      align: "center",
-    });
-    page.drawText(`Event: ${ticketFor}`, {
-      x: textX,
-      y: textY - 5,
-      size: 14,
-      align: "center",
-    });
-    if (gender) {
-      page.drawText(`Gender: ${gender}`, {
-        x: textX + 150,
-        y: textY + 70,
-        size: 14,
-        align: "center",
-      });
-    }
-
-    // Add QR code in the center
-    const qrDims = 200;
-    const qrX = (page.getWidth() - qrDims) / 2;
-    const qrY = textY - 220; // Pushed up by 120 units
-    const qrCodeImageBuffer = Buffer.from(
-      qrCodeImage.replace(/^data:image\/\w+;base64,/, ""),
-      "base64"
+    const pdfBuffer = await generateTicketPdf(ticket);
+    const { storagePath, ticketUrl } = await saveTicketPdf(
+      finalTicketId,
+      pdfBuffer,
     );
-    page.drawImage(await pdfDoc.embedPng(qrCodeImageBuffer), {
-      x: qrX,
-      y: qrY,
-      width: qrDims,
-      height: qrDims,
-    });
 
-    // Add ticket ID underneath the QR code
-    page.drawText(`Ticket ID: ${finalTicketId}`, {
-      x: qrX,
-      y: qrY - 20,
-      size: 12,
-    });
+    const safeName = escapeHtml(full_name);
+    const safeTicketFor = escapeHtml(ticketFor);
+    const safeType = escapeHtml(type || "N/A");
+    const safeAmount = escapeHtml(amount || "0.00");
+    const safeReceipt = escapeHtml(mpesaReceipt || "N/A");
+    const safeTicketId = escapeHtml(finalTicketId);
+    const downloadHtml = ticketUrl
+      ? `<p>You can also download your ticket here: <a href="${escapeHtml(ticketUrl)}">Download ticket PDF</a></p>`
+      : "";
 
-    // Generate PDF bytes
-    const pdfBytes = await pdfDoc.save();
-
-    // Create email options
-    const mailOptions = {
-      from: process.env.EMAIL_ADDRESS,
+    await transporter.sendMail({
+      from: getFromAddress(),
       to: email,
       subject: `Your Ticket Confirmation - ${ticketFor}`,
-      text: `Dear ${full_name},\n\nThank you for your purchase. Your ticket for "${ticketFor}" has been confirmed.\n\nTicket Details:\n- Ticket Type: ${
-        type || "N/A"
-      }\n- Amount: Ksh ${amount || "0.00"}\n- Mpesa Receipt: ${
-        mpesaReceipt || "N/A"
-      }\n- Ticket ID: ${finalTicketId}\n\nBest regards,\nHalal EventBrite Team`,
+      text: `Dear ${full_name},
+
+Thank you for your purchase. Your ticket for "${ticketFor}" has been confirmed.
+
+Ticket Details:
+- Ticket Type: ${type || "N/A"}
+- Amount: Ksh ${amount || "0.00"}
+- Mpesa Receipt: ${mpesaReceipt || "N/A"}
+- Ticket ID: ${finalTicketId}
+${ticketUrl ? `\nDownload ticket: ${ticketUrl}\n` : ""}
+Best regards,
+Halal EventBrite Team`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Ticket Confirmation</h2>
-          <p>Dear ${full_name},</p>
-          <p>Thank you for your purchase. Your ticket for <strong>${ticketFor}</strong> has been confirmed.</p>
+          <p>Dear ${safeName},</p>
+          <p>Thank you for your purchase. Your ticket for <strong>${safeTicketFor}</strong> has been confirmed.</p>
           <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
             <h3>Ticket Details:</h3>
-            <p><strong>Ticket Type:</strong> ${type || "N/A"}</p>
-            <p><strong>Amount:</strong> Ksh ${amount || "0.00"}</p>
-            <p><strong>Mpesa Receipt:</strong> ${mpesaReceipt || "N/A"}</p>
-            <p><strong>Ticket ID:</strong> ${finalTicketId}</p>
+            <p><strong>Ticket Type:</strong> ${safeType}</p>
+            <p><strong>Amount:</strong> Ksh ${safeAmount}</p>
+            <p><strong>Mpesa Receipt:</strong> ${safeReceipt}</p>
+            <p><strong>Ticket ID:</strong> ${safeTicketId}</p>
           </div>
           <p>Your ticket PDF is attached to this email.</p>
+          ${downloadHtml}
           <p>Best regards,<br>Halal EventBrite Team</p>
         </div>
       `,
       attachments: [
         {
-          filename: "ticket_confirmation.pdf",
-          content: pdfBytes,
-          encoding: "base64",
+          filename: `${finalTicketId}.pdf`,
+          content: pdfBuffer,
+          contentType: "application/pdf",
         },
       ],
-    };
+    });
 
-    // Send email
-    await transporter.sendMail(mailOptions);
-
-    // Send a success response
     res.status(200).json({
       success: true,
       message: "Email sent successfully",
       ticketId: finalTicketId,
+      ticketPdfPath: storagePath,
+      ticketUrl,
     });
   } catch (error) {
     console.error("Error sending email:", error);
-    // Send detailed error message for debugging
     res.status(500).json({
       error: "Error sending email",
-      message: error.message,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Failed to send ticket email"
+          : error.message,
       details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 });
 
-// Start the server
 const PORT = process.env.PORT || 3007;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
-// Export the app instance
 module.exports = app;
