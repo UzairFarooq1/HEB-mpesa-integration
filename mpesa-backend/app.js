@@ -12,14 +12,13 @@
 require("dotenv").config();
 
 const express = require("express");
-const app = express();
 const http = require("http");
 const bodyParser = require("body-parser");
 const axios = require("axios"); // Import 'axios' instead of 'request'
 const moment = require("moment");
-const apiRouter = require('./api');
+const apiRouter = require("./api");
 const cors = require("cors");
-
+const app = express();
 
 const port = process.env.PORT || 3070;
 const hostname = process.env.HOST || "0.0.0.0";
@@ -28,33 +27,52 @@ const mainWebsiteUrl =
 const mpesaCallbackUrl =
   process.env.MPESA_CALLBACK_URL ||
   "https://epay.halaleventbrite.co.ke/api/callback";
+
 const allowedOrigins = [
-  mainWebsiteUrl,
+  process.env.MAIN_WEBSITE_URL,
   "https://ticketing.halaleventbrite.co.ke",
   "https://halaleventbrite.co.ke",
+  "https://www.halaleventbrite.co.ke", // add if applicable
   "http://localhost:5173",
   "http://localhost:5174",
-].map((origin) => origin.replace(/\/$/, ""));
+]
+  .filter(Boolean)
+  .map((o) => o.replace(/\/$/, ""));
+
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ""))) {
-      callback(null, true);
-      return;
+    // allow server-side requests / mobile apps
+    if (!origin) return callback(null, true);
+
+    const normalized = origin.replace(/\/$/, "");
+
+    if (allowedOrigins.includes(normalized)) {
+      return callback(null, true);
     }
+
+    console.log("Blocked Origin:", origin);
 
     callback(new Error(`CORS blocked origin: ${origin}`));
   },
+
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
-  optionsSuccessStatus: 204,
 };
+
+app.use((req, res, next) => {
+  console.log(req.method, req.url);
+  console.log("Origin:", req.headers.origin);
+  next();
+});
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
-app.use('/', apiRouter);
+
+app.use("/", apiRouter);
 
 const server = http.createServer(app);
 
@@ -84,7 +102,7 @@ async function getAccessToken() {
         Authorization: auth,
       },
     });
-   
+
     const dataresponse = response.data;
     // console.log(data);
     const accessToken = dataresponse.access_token;
@@ -100,7 +118,6 @@ app.get("/", (req, res) => {
   console.log(timeStamp);
 });
 
-
 //ACCESS TOKEN ROUTE
 app.get("/access_token", (req, res) => {
   getAccessToken()
@@ -114,14 +131,13 @@ app.get("/access_token", (req, res) => {
 app.get("/stkpush", (req, res) => {
   getAccessToken()
     .then((accessToken) => {
-      const url =
-        "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
+      const url = "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
       const auth = "Bearer " + accessToken;
       const timestamp = moment().format("YYYYMMDDHHmmss");
       const shortcode = requireEnv("MPESA_SHORTCODE");
       const passkey = requireEnv("MPESA_PASSKEY");
       const password = new Buffer.from(
-        shortcode + passkey + timestamp
+        shortcode + passkey + timestamp,
       ).toString("base64");
 
       axios
@@ -144,10 +160,12 @@ app.get("/stkpush", (req, res) => {
             headers: {
               Authorization: auth,
             },
-          }
+          },
         )
         .then((response) => {
-          res.send("😀 Request is successful done ✔✔. Please enter mpesa pin to complete the transaction");
+          res.send(
+            "😀 Request is successful done ✔✔. Please enter mpesa pin to complete the transaction",
+          );
         })
         .catch((error) => {
           console.log(error);
@@ -185,7 +203,7 @@ app.get("/registerurl", (req, resp) => {
             headers: {
               Authorization: auth,
             },
-          }
+          },
         )
         .then((response) => {
           resp.status(200).json(response.data);
@@ -225,7 +243,7 @@ app.get("/b2curlrequest", (req, res) => {
             CommandID: "PromotionPayment",
             Amount: "1",
             PartyA: "600996",
-            PartyB: "",//phone number to receive the stk push
+            PartyB: "", //phone number to receive the stk push
             Remarks: "Withdrawal",
             QueueTimeOutURL: "https://epay.halaleventbrite.co.ke/b2c/queue",
             ResultURL: "https://epay.halaleventbrite.co.ke/b2c/result",
@@ -235,7 +253,7 @@ app.get("/b2curlrequest", (req, res) => {
             headers: {
               Authorization: auth,
             },
-          }
+          },
         )
         .then((response) => {
           res.status(200).json(response.data);
