@@ -1,137 +1,67 @@
 # Critical Fix for 500 Error
 
 ## Problem
-You're getting a 500 Internal Server Error when trying to initiate M-Pesa payment. The error occurs because:
 
-1. **Backend code not deployed** - The fixes are in your local code but NOT deployed to Vercel
-2. **Decimal amounts** - Promo codes create decimal amounts (e.g., 1009.80) which need proper handling
-3. **Missing error details** - Hard to debug without detailed error messages
+You're getting a 500 Internal Server Error when trying to initiate an M-Pesa payment. The common causes are:
 
-## What I've Fixed
+1. **Backend code not deployed** - The fixes are local but not deployed to the VPS.
+2. **Decimal amounts** - Promo codes can create decimal amounts, which must be rounded for M-Pesa.
+3. **Missing error details** - Debugging is harder without useful backend logs.
 
-### 1. Improved Amount Handling
-- ✅ Properly rounds decimal amounts using `Math.ceil()`
-- ✅ Validates minimum amount (1 KSH)
-- ✅ Converts to string format required by M-Pesa
+## Production Domains
 
-### 2. Enhanced Error Handling
-- ✅ Detailed error logging for debugging
-- ✅ Proper error messages returned to frontend
-- ✅ Handles M-Pesa API errors correctly
-- ✅ Validates access token before use
+- M-Pesa backend: `https://epay.halaleventbrite.co.ke`
+- Main website: `https://ticketing.halaleventbrite.co.ke`
+- Mail domain: `mailer.halaleventbrite.co.ke`
 
-### 3. Better Phone Number Validation
-- ✅ Cleans phone numbers (removes spaces, dashes)
-- ✅ Validates format and length
-- ✅ Converts to Kenyan format (254XXXXXXXXX)
+## Quick Deploy Steps
 
-### 4. Improved Logging
-- ✅ Logs all request details
-- ✅ Logs M-Pesa API responses
-- ✅ Logs error details for debugging
-
-## ⚠️ CRITICAL: Deploy to Vercel NOW
-
-**The backend MUST be deployed for these fixes to work!**
-
-### Quick Deploy Steps:
-
-1. **Navigate to backend directory:**
+1. Navigate to the backend directory:
    ```bash
    cd mpesa-backend
    ```
 
-2. **Install dependencies (if not done):**
+2. Install dependencies:
    ```bash
    npm install
    ```
 
-3. **Deploy to Vercel:**
+3. Configure production environment variables:
    ```bash
-   # If you have Vercel CLI installed:
-   vercel --prod
-   
-   # OR if not installed:
-   npx vercel --prod
+   MPESA_CALLBACK_URL=https://epay.halaleventbrite.co.ke/api/callback
+   MAIN_WEBSITE_URL=https://ticketing.halaleventbrite.co.ke
+   MAILER_DOMAIN=mailer.halaleventbrite.co.ke
    ```
 
-4. **Follow the prompts:**
-   - Link to existing project? **Yes**
-   - Select your existing project: `mpesa-backend-api`
-   - Deploy? **Yes**
-
-### Alternative: Deploy via GitHub
-
-1. Commit and push your changes:
+4. Start or restart the VPS process:
    ```bash
-   git add .
-   git commit -m "Fix M-Pesa 500 error - improve error handling and amount processing"
-   git push
+   npm start
    ```
-
-2. Vercel will auto-deploy if connected to your repo
 
 ## Testing After Deployment
 
-1. **Check deployment status:**
-   - Go to Vercel Dashboard
-   - Check if deployment succeeded
-   - View function logs if there are errors
-
-2. **Test the endpoint:**
+1. Confirm the backend responds:
    ```bash
-   curl -X POST https://mpesa-backend-api.vercel.app/api/stkpush \
-     -H "Content-Type: application/json" \
-     -d '{"phone": "254712345678", "amount": 1009.80, "event": "Test Event"}'
+   curl https://epay.halaleventbrite.co.ke/api/home
    ```
 
-3. **Check browser console:**
-   - You should now see detailed error messages if something fails
-   - Look for "Processing STK Push" log messages
+2. Test the STK endpoint:
+   ```bash
+   curl -X POST https://epay.halaleventbrite.co.ke/api/stkpush \
+     -H "Content-Type: application/json" \
+     -d '{"phone": "254712345678", "amount": 1009.80, "event": "Test Event", "ticketId": "test-ticket"}'
+   ```
 
 ## What to Check if Still Getting 500 Error
 
-After deployment, if you still get a 500 error:
+1. Check VPS process logs, for example PM2 or systemd.
+2. Confirm the M-Pesa callback URL is reachable.
+3. Confirm M-Pesa credentials are valid.
+4. Confirm phone numbers use Kenyan format: `254XXXXXXXXX`.
+5. Confirm amounts are at least 1 KSH.
 
-1. **Check Vercel Function Logs:**
-   - Go to Vercel Dashboard → Your Project → Functions → View Logs
-   - Look for error messages and stack traces
-   - The logs will show exactly what's failing
+## Files Involved
 
-2. **Common Issues:**
-   - **M-Pesa credentials expired** - Check if consumer key/secret are still valid
-   - **Callback URL not accessible** - Ensure callback endpoint is working
-   - **Phone number format** - Must be 254XXXXXXXXX format
-   - **Amount too low** - Must be at least 1 KSH
-
-3. **Check Browser Console:**
-   - Look for detailed error messages
-   - The frontend now shows backend error messages
-
-## Expected Behavior After Fix
-
-✅ **Success Case:**
-- Request sent to backend
-- Backend processes amount (rounds decimals)
-- M-Pesa API called successfully
-- STK push prompt appears on phone
-- Backend returns success message
-
-❌ **Error Case (with better messages):**
-- Request sent to backend
-- Backend validates input
-- If error occurs, detailed message returned
-- Frontend shows specific error (not generic "Failed to initiate payment")
-
-## Files Changed
-
-- `mpesa-backend/api.js` - Enhanced error handling and amount processing
-- `src/components/Checkout/CheckoutComp.jsx` - Better error display
-
-## Next Steps
-
-1. **DEPLOY NOW** - This is the most important step!
-2. Test with a real payment
-3. Check logs if errors persist
-4. Report specific error messages if issues continue
-
+- `mpesa-backend/api.js` - STK push, callback handling, receipt verification.
+- `mpesa-backend/app.js` - Express server, CORS, VPS host/port binding.
+- `mpesa-backend/.env` - Production environment values.

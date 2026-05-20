@@ -21,11 +21,21 @@ const apiRouter = require('./api');
 const cors = require("cors");
 
 
-const port = 3070;
-const hostname = "localhost";
+const port = process.env.PORT || 3070;
+const hostname = process.env.HOST || "0.0.0.0";
+const mainWebsiteUrl =
+  process.env.MAIN_WEBSITE_URL || "https://ticketing.halaleventbrite.co.ke";
+const mpesaCallbackUrl =
+  process.env.MPESA_CALLBACK_URL ||
+  "https://epay.halaleventbrite.co.ke/api/callback";
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
-app.use(cors());
+app.use(
+  cors({
+    origin: [mainWebsiteUrl, "http://localhost:5173", "http://localhost:5174"],
+    credentials: true,
+  }),
+);
 app.use('/', apiRouter);
 
 const server = http.createServer(app);
@@ -108,7 +118,7 @@ app.get("/stkpush", (req, res) => {
             PartyA: "254791495274", //phone number to receive the stk push
             PartyB: shortcode,
             PhoneNumber: "254791495274",
-            CallBackURL: "https://stirring-seasnail-mildly.ngrok-free.app/callback",
+            CallBackURL: mpesaCallbackUrl,
             AccountReference: "UMESKIA PAY",
             TransactionDesc: "Mpesa Daraja API stk push test",
           },
@@ -150,8 +160,8 @@ app.get("/registerurl", (req, resp) => {
           {
             ShortCode: requireEnv("MPESA_SHORTCODE"),
             ResponseType: "Completed",
-            ConfirmationURL: "http://uzairdevportfolio.tech/confirmation",
-            ValidationURL: "http://uzairdevportfolio.tech/validation",
+            ConfirmationURL: "https://epay.halaleventbrite.co.ke/confirmation",
+            ValidationURL: "https://epay.halaleventbrite.co.ke/validation",
           },
           {
             headers: {
@@ -199,8 +209,8 @@ app.get("/b2curlrequest", (req, res) => {
             PartyA: "600996",
             PartyB: "",//phone number to receive the stk push
             Remarks: "Withdrawal",
-            QueueTimeOutURL: "https://mydomain.com/b2c/queue",
-            ResultURL: "https://mydomain.com/b2c/result",
+            QueueTimeOutURL: "https://epay.halaleventbrite.co.ke/b2c/queue",
+            ResultURL: "https://epay.halaleventbrite.co.ke/b2c/result",
             Occasion: "Withdrawal",
           },
           {
@@ -220,12 +230,12 @@ app.get("/b2curlrequest", (req, res) => {
     .catch(console.log);
 });
 
-// Only start server if not running on Vercel
-if (process.env.VERCEL !== '1') {
+// Only start the server when this file is run directly on the VPS.
+if (require.main === module) {
   server.listen(port, hostname, () => {
     console.log(`Server running at http://${hostname}:${port}/`);
   });
 }
 
-// Export app for Vercel serverless functions
+// Export app for serverless wrappers or tests.
 module.exports = app;

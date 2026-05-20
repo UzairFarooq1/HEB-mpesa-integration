@@ -51,7 +51,7 @@ const MPESA_SHORTCODE = process.env.MPESA_SHORTCODE;
 const MPESA_PASSKEY = process.env.MPESA_PASSKEY;
 const MPESA_CALLBACK_URL =
   process.env.MPESA_CALLBACK_URL ||
-  "https://mpesa-backend-api.vercel.app/api/callback";
+  "https://epay.halaleventbrite.co.ke/api/callback";
 
 function requireEnv(name) {
   const value = process.env[name];
